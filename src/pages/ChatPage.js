@@ -342,19 +342,6 @@ function ChatPage() {
     }
   };
 
-  const startRecording = () => {
-    if (!isListening && !isProcessingVoice) {
-      handleVoiceInput();
-    }
-  };
-
-  const stopRecording = () => {
-    if (isListening) {
-      speechService.stopListening();
-      setIsListening(false);
-    }
-  };
-
   const toggleSpeech = async () => {
     if (isSpeaking) {
       await stopPlayback();
