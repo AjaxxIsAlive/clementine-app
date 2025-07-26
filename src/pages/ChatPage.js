@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Send, Volume2, VolumeX, RotateCcw } from 'lucide-react';
+import { MessageSquare, Send, Volume2, VolumeX, RotateCcw, Mic, Square } from 'lucide-react';
 import voiceFlowAPI from '../services/voiceflow';
 import speechService from '../services/speechService';
 
@@ -32,6 +32,15 @@ function ChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const stopPlayback = useCallback(async () => {
+    try {
+      await speechService.stopPlayback();
+      setIsSpeaking(false);
+    } catch (error) {
+      console.error('Error stopping playback:', error);
+    }
+  }, []);
 
   const handleSendMessage = useCallback(async (messageText) => {
     if (!messageText.trim() || isLoading) return;
@@ -288,6 +297,17 @@ function ChatPage() {
     }
   };
 
+  const startRecording = () => {
+    handleVoiceInput();
+  };
+
+  const stopRecording = () => {
+    if (isListening) {
+      speechService.stopListening();
+      setIsListening(false);
+    }
+  };
+
   const toggleSpeech = () => {
     if (isSpeaking) {
       speechService.synthesis.cancel();
@@ -444,58 +464,24 @@ function ChatPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-xl border border-pink-100 p-6">
-          <div className="flex space-x-4">
-            {/* Voice Input Button */}
-            <div className="flex-shrink-0">
-              {isSpeaking && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    speechService.synthesis.cancel();
-                    setIsSpeaking(false);
-                  }}
-                  className="w-12 h-12 rounded-full bg-red-500 text-white hover:bg-red-600 flex items-center justify-center font-semibold transition-all duration-300 mb-2"
-                >
-                  ⏹️
-                </button>
-              )}
-              
+          {/* Stop Speaking Button */}
+          {isSpeaking && (
+            <div className="flex items-center justify-center mb-4 p-3 bg-blue-50 rounded-lg">
+              <span className="text-blue-600 font-medium mr-3">
+                🔊 Clementine is speaking...
+              </span>
               <button
-                type="button"
-                onClick={handleVoiceInput}
-                disabled={isMobile && permissionStatus.microphone === 'denied'}
-                className={`w-12 h-12 rounded-full transition-all transform hover:scale-105 ${
-                  isListening
-                    ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse'
-                    : isMobile && permissionStatus.microphone === 'denied'
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : isMobile && permissionStatus.microphone === 'unknown'
-                    ? 'bg-orange-100 hover:bg-orange-200 text-orange-600'
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-                }`}
-                title={
-                  isListening ? 'Stop listening' :
-                  isMobile && permissionStatus.microphone === 'denied' ? 'Microphone access denied' :
-                  isMobile && permissionStatus.microphone === 'unknown' ? 'Tap to enable voice chat' :
-                  'Start voice input'
-                }
+                onClick={stopPlayback}
+                className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 transition-colors flex items-center text-sm"
+                title="Stop speaking"
               >
-                {isListening ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m0 0a9 9 0 01-9-9m9 9v-9m0 9l3-3m-3 3l-3-3M12 12V3" />
-                  </svg>
-                ) : isMobile && permissionStatus.microphone === 'denied' ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.636 5.636l12.728 12.728M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                )}
+                <Square className="w-4 h-4 mr-1" />
+                Stop
               </button>
             </div>
+          )}
 
+          <div className="flex space-x-4">
             {/* Text Input */}
             <div className="flex-1 flex space-x-4">
               <input
@@ -503,24 +489,46 @@ function ChatPage() {
                 type="text"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Type your message or tap mic to talk..."
+                onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSendMessage()}
+                placeholder="Type your message..."
                 disabled={isLoading || isListening}
                 className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
               />
               
-              {/* Send Button */}
+              {/* Microphone Button */}
               <button
-                type="submit"
-                disabled={isLoading || !inputMessage.trim() || isListening}
-                className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-semibold transition-all duration-300 ${
-                  isLoading || !inputMessage.trim() || isListening
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600'
+                onMouseDown={startRecording}
+                onMouseUp={stopRecording}
+                onTouchStart={startRecording}
+                onTouchEnd={stopRecording}
+                className={`px-4 py-3 rounded-xl transition-all duration-200 flex items-center justify-center min-w-[48px] ${
+                  isListening 
+                    ? 'bg-red-500 text-white scale-105 shadow-lg' 
+                    : 'bg-pink-500 text-white hover:bg-pink-600 shadow-md'
                 }`}
+                disabled={isLoading}
+                title="Hold to record voice message"
               >
-                <Send className="w-5 h-5" />
+                {isListening ? (
+                  <Square className="w-5 h-5" />
+                ) : (
+                  <Mic className="w-5 h-5" />
+                )}
               </button>
             </div>
+
+            {/* Send Button */}
+            <button
+              type="submit"
+              disabled={isLoading || !inputMessage.trim() || isListening}
+              className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-semibold transition-all duration-300 ${
+                isLoading || !inputMessage.trim() || isListening
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600'
+              }`}
+            >
+              <Send className="w-5 h-5" />
+            </button>
           </div>
           
           {/* Enhanced Status Indicators */}
@@ -531,12 +539,7 @@ function ChatPage() {
                   🔴 Listening... Tap mic again to stop
                 </span>
               )}
-              {isSpeaking && (
-                <span className="text-blue-500 font-medium flex items-center">
-                  🔊 Clementine is speaking... 
-                  <span className="ml-2 text-xs">(Press ⏹️ to stop)</span>
-                </span>
-              )}
+              
               {isProcessingVoice && (
                 <span className="text-purple-500 font-medium animate-pulse">
                   🎤 Processing your voice...
@@ -548,7 +551,6 @@ function ChatPage() {
                 </span>
               )}
             </div>
-            
             <div className="text-xs text-gray-500">
               {isMobile && permissionStatus.microphone === 'denied' ? 
                 "Microphone access denied" :
