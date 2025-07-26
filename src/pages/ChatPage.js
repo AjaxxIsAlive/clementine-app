@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Mic, MicOff, Send, Volume2, VolumeX, RotateCcw } from 'lucide-react';
+import { MessageSquare, Send, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import voiceFlowAPI from '../services/voiceflow';
 import speechService from '../services/speechService';
 
