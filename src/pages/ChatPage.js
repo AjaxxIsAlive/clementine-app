@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageSquare, Send, Volume2, VolumeX, RotateCcw, Mic, Square } from 'lucide-react';
 import voiceFlowAPI from '../services/voiceflow';
 import speechService from '../services/speechService';
+// Force rebuild timestamp: ${new Date().toISOString()}
 
 function ChatPage() {
   const [messages, setMessages] = useState([]);
@@ -378,7 +379,13 @@ function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 pb-24">
+    <div 
+      className="min-h-screen pb-24"
+      style={{
+        background: 'linear-gradient(135deg, #ff6b6b 0%, #4ecdc4 25%, #45b7d1 50%, #96ceb4 75%, #ffeaa7 100%)',
+        animation: 'gradient-shift 3s ease infinite'
+      }}
+    >
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Mobile Permission Request Modal */}
         {showPermissionRequest && (
@@ -429,6 +436,9 @@ function ChatPage() {
           </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
             Chat with Clementine
+            <span className="text-xs bg-red-500 text-white px-3 py-1 rounded-full ml-2 animate-pulse">
+              🔥 UPDATED v3.0 🔥
+            </span>
           </h1>
           <p className="text-gray-600">
             Voice chat with your AI relationship advisor
@@ -521,28 +531,32 @@ function ChatPage() {
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSendMessage(inputMessage)}
-                placeholder="Type your message..."
-                disabled={isLoading}
-                className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+                placeholder="✨ ALWAYS ACTIVE TEXT INPUT ✨"
+                style={{
+                  backgroundColor: '#fef2f2',
+                  borderColor: '#ef4444',
+                  borderWidth: '3px'
+                }}
+                className="flex-1 px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
               />
               
               {/* Microphone/Stop Button */}
               <button
                 onClick={handleVoiceInput}
-                className={`px-4 py-3 rounded-xl transition-all duration-200 flex items-center justify-center min-w-[48px] ${
-                  isListening 
-                    ? 'bg-red-500 text-white scale-105 shadow-lg' 
-                    : isSpeaking
-                    ? 'bg-red-600 text-white shadow-lg hover:bg-red-700'
-                    : isProcessingVoice
-                    ? 'bg-yellow-500 text-white shadow-md'
-                    : 'bg-pink-500 text-white hover:bg-pink-600 shadow-md'
-                }`}
+                style={{
+                  backgroundColor: isListening ? '#dc2626' : isSpeaking ? '#b91c1c' : '#ec4899',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  fontSize: '16px',
+                  transform: isListening ? 'scale(1.1)' : 'scale(1)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                }}
+                className="px-4 py-3 rounded-xl transition-all duration-200 flex items-center justify-center min-w-[48px]"
                 disabled={isLoading && !isListening && !isSpeaking}
                 title={
-                  isListening ? "Tap to stop recording" : 
-                  isSpeaking ? "Tap to stop Clementine speaking" :
-                  "Tap to start voice message"
+                  isListening ? "🛑 TAP TO STOP RECORDING" : 
+                  isSpeaking ? "🛑 TAP TO STOP CLEMENTINE" :
+                  "🎤 TAP TO START VOICE"
                 }
               >
                 {isListening ? (
