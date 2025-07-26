@@ -131,21 +131,54 @@ class SpeechService {
       this.recognition.continuous = false; // Better for mobile
       this.recognition.interimResults = false; // Reduce processing on mobile
     } else {
-      this.recognition.continuous = true;
-      this.recognition.interimResults = true;
+      // Desktop: Use single-shot mode for better UX (like mobile)
+      this.recognition.continuous = false; // Single utterance detection
+      this.recognition.interimResults = true; // Show interim results for feedback
     }
     
     this.recognition.lang = 'en-US';
     this.recognition.maxAlternatives = 1;
 
+    // Add timeout to prevent infinite listening
+    let speechTimeout;
+
     this.recognition.onstart = () => {
       this.isListening = true;
       if (this.onStart) this.onStart();
+      
+      // Set a timeout to automatically stop listening after 10 seconds
+      speechTimeout = setTimeout(() => {
+        console.log('Speech recognition timeout - auto stopping');
+        if (this.isListening) {
+          this.stopListening();
+          if (this.onError) this.onError('No speech detected. Please try again.');
+        }
+      }, 10000); // 10 second timeout
     };
 
     this.recognition.onresult = (event) => {
+      // Clear the timeout since we got a result
+      if (speechTimeout) {
+        clearTimeout(speechTimeout);
+        speechTimeout = null;
+      }
+      
       const result = event.results[event.results.length - 1];
-      if (result.isFinal && this.onResult) {
+      
+      // For desktop: trigger on any confident result to be more responsive
+      if (!this.isMobile && result[0].confidence > 0.5 && result[0].transcript.trim().length > 0) {
+        if (this.onResult) {
+          this.onResult(result[0].transcript);
+          // Stop recognition immediately to prevent the 3-second wait
+          this.stopListening();
+        }
+      }
+      // For mobile: only trigger on final results
+      else if (this.isMobile && result.isFinal && this.onResult) {
+        this.onResult(result[0].transcript);
+      }
+      // Fallback: trigger on final results if confidence check didn't work
+      else if (!this.isMobile && result.isFinal && this.onResult) {
         this.onResult(result[0].transcript);
       }
     };
@@ -198,9 +231,18 @@ class SpeechService {
     };
 
     this.recognition.onend = () => {
+      // Clear the timeout when recognition ends
+      if (speechTimeout) {
+        clearTimeout(speechTimeout);
+        speechTimeout = null;
+      }
+      
       this.isListening = false;
       if (this.onEnd) this.onEnd();
     };
+    
+    // Store timeout reference for cleanup
+    this.speechTimeout = speechTimeout;
   }
 
   // Start listening with permission check

@@ -35,6 +35,7 @@ function ChatPage() {
   }, [messages]);
 
   const stopPlayback = useCallback(async () => {
+    console.log('🛑 stopPlayback called - clearing all audio states');
     try {
       // Stop VoiceFlow audio
       if (audioRef.current) {
@@ -44,10 +45,14 @@ function ChatPage() {
       
       // Stop speech synthesis
       await speechService.stopPlayback();
+      
+      // Ensure all audio-related states are cleared
       setIsSpeaking(false);
+      setIsProcessingVoice(false);
     } catch (error) {
       console.error('Error stopping playback:', error);
       setIsSpeaking(false);
+      setIsProcessingVoice(false);
     }
   }, []);
 
@@ -306,18 +311,27 @@ function ChatPage() {
   };
 
   const handleVoiceInput = async () => {
-    console.log('handleVoiceInput called', { isProcessingVoice, isListening, isSpeaking, isMobile, permissionStatus });
+    console.log('🎤 handleVoiceInput called', { 
+      isProcessingVoice, 
+      isListening, 
+      isSpeaking, 
+      isMobile, 
+      permissionStatus,
+      speechServiceExists: !!speechService,
+      speechRecognitionSupported: !!window.SpeechRecognition || !!window.webkitSpeechRecognition
+    });
     
     // If currently speaking, stop the speech instead of starting voice input
     if (isSpeaking) {
-      console.log('Stopping speech playback');
+      console.log('🛑 Stopping speech playback');
+      setIsProcessingVoice(false); // Clear processing state immediately
       await stopPlayback();
       return;
     }
     
     // Prevent multiple simultaneous requests
     if (isProcessingVoice) {
-      console.log('Already processing voice, returning');
+      console.log('⚠️ Already processing voice, returning');
       return;
     }
 
@@ -330,12 +344,12 @@ function ChatPage() {
 
     if (isListening) {
       // Stop listening
-      console.log('Stopping listening');
+      console.log('🛑 Manually stopping listening');
       speechService.stopListening();
       setIsListening(false);
     } else {
       // Start voice input
-      console.log('Starting voice input');
+      console.log('🎤 Starting voice input');
       
       setError('');
       setIsProcessingVoice(true);
@@ -542,17 +556,23 @@ function ChatPage() {
               
               {/* Microphone/Stop Button */}
               <button
-                onClick={handleVoiceInput}
+                onClick={() => {
+                  console.log('🔥 BUTTON CLICKED! States:', { isLoading, isListening, isSpeaking, isProcessingVoice });
+                  handleVoiceInput();
+                }}
                 style={{
-                  backgroundColor: isListening ? '#dc2626' : isSpeaking ? '#b91c1c' : '#ec4899',
+                  backgroundColor: isListening ? '#dc2626' : isSpeaking ? '#b91c1c' : isProcessingVoice ? '#eab308' : '#ec4899',
                   color: 'white',
                   fontWeight: 'bold',
                   fontSize: '16px',
                   transform: isListening ? 'scale(1.1)' : 'scale(1)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  opacity: (isLoading && !isListening && !isSpeaking) ? 0.5 : 1,
+                  minWidth: '48px',
+                  minHeight: '48px'
                 }}
                 className="px-4 py-3 rounded-xl transition-all duration-200 flex items-center justify-center min-w-[48px]"
-                disabled={isLoading && !isListening && !isSpeaking}
+                disabled={false}
                 title={
                   isListening ? "🛑 TAP TO STOP RECORDING" : 
                   isSpeaking ? "🛑 TAP TO STOP CLEMENTINE" :
@@ -561,10 +581,10 @@ function ChatPage() {
               >
                 {isListening ? (
                   <Square className="w-5 h-5" />
+                ) : isProcessingVoice && !isSpeaking ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : isSpeaking ? (
                   <Square className="w-5 h-5" />
-                ) : isProcessingVoice ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Mic className="w-5 h-5" />
                 )}
@@ -588,6 +608,11 @@ function ChatPage() {
           {/* Enhanced Status Indicators */}
           <div className="mt-4 flex justify-between items-center text-sm">
             <div className="flex space-x-4">
+              {/* Debug States */}
+              <div className="text-xs bg-gray-100 px-2 py-1 rounded">
+                🐛 DEBUG: L:{isListening ? '✅' : '❌'} S:{isSpeaking ? '✅' : '❌'} P:{isProcessingVoice ? '✅' : '❌'} Load:{isLoading ? '✅' : '❌'}
+              </div>
+              
               {isListening && (
                 <span className="text-red-500 font-bold animate-pulse text-lg">
                   🔴 Listening... Tap mic to stop
