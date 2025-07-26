@@ -14,7 +14,9 @@ function ChatPage() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const audioRef = useRef(null);
+  // eslint-disable-next-line no-unused-vars
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [voiceError, setVoiceError] = useState(null);
 
   const scrollToBottom = () => {
