@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageSquare, Mic, MicOff, Send, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import voiceFlowAPI from '../services/voiceflow';
 import speechService from '../services/speechService';
@@ -60,8 +60,8 @@ function ChatPage() {
     });
   };
 
-  const initializeConversation = async () => {
-    try {
+  const initializeConversation = useCallback(async () => {
+  try {
       setIsLoading(true);
       const response = await voiceFlowAPI.startConversation();
       console.log('VoiceFlow response object:', response);
@@ -110,7 +110,7 @@ function ChatPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const sendMessage = async (messageText) => {
     if (!messageText.trim() || isLoading) return;
