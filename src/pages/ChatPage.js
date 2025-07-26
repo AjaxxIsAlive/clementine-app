@@ -24,10 +24,10 @@ function ChatPage() {
   }, [messages]);
 
   useEffect(() => {
-    if (!hasStartedConversation) {
-      initializeConversation();
-    }
-  }, [hasStartedConversation]);
+  if (!hasStartedConversation) {
+    initializeConversation();
+  }
+}, [hasStartedConversation, initializeConversation]);
 
   const playVoiceFlowAudio = (audioUrl) => {
     console.log('playVoiceFlowAudio called with:', audioUrl?.substring(0, 50) + '...');

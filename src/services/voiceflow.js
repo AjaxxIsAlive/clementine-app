@@ -125,4 +125,5 @@ class VoiceFlowAPI {
   }
 }
 
-export default new VoiceFlowAPI();
+const voiceFlowAPIInstance = new VoiceFlowAPI();
+export default voiceFlowAPIInstance;
