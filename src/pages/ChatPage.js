@@ -14,6 +14,8 @@ function ChatPage() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const audioRef = useRef(null);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [voiceError, setVoiceError] = useState(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -113,89 +115,114 @@ function ChatPage() {
   }
 }, [hasStartedConversation, initializeConversation]);
 
-  const sendMessage = async (messageText) => {
-    if (!messageText.trim() || isLoading) return;
+const sendMessage = async (messageText) => {
+  if (!messageText.trim() || isLoading) return;
 
-    const userMessage = {
-      id: Date.now(),
-      text: messageText,
-      isUser: true,
+  // Clear previous voice errors
+  setVoiceError(null);
+
+  const userMessage = {
+    id: Date.now(),
+    text: messageText,
+    isUser: true,
+    timestamp: new Date()
+  };
+
+  setMessages(prev => [...prev, userMessage]);
+  setInputMessage('');
+  setIsLoading(true);
+
+  try {
+    const response = await voiceFlowAPI.interact(messageText);
+    
+    const assistantMessage = {
+      id: Date.now() + 1,
+      text: response.text || response,
+      isUser: false,
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    setIsLoading(true);
+    setMessages(prev => [...prev, assistantMessage]);
 
-    try {
-      const response = await voiceFlowAPI.interact(messageText);
-      
-      const assistantMessage = {
-        id: Date.now() + 1,
-        text: response.text || response,
-        isUser: false,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-
-      // Play VoiceFlow audio if available and voice is enabled
-      if (isVoiceEnabled && response.audioUrl) {
-        try {
-          await playVoiceFlowAudio(response.audioUrl);
-        } catch (error) {
-          console.error('Error playing response audio:', error);
-          // Fallback to browser TTS if VoiceFlow audio fails
-          if (speechService.isSpeechSynthesisSupported()) {
+    // Enhanced voice processing with error handling
+    if (isVoiceEnabled && response.audioUrl) {
+      setIsProcessingVoice(true);
+      try {
+        await playVoiceFlowAudio(response.audioUrl);
+      } catch (error) {
+        console.error('VoiceFlow audio failed:', error);
+        setVoiceError('Audio playback failed');
+        
+        // Fallback to browser TTS
+        if (speechService.isSpeechSynthesisSupported()) {
+          try {
             setIsSpeaking(true);
             await speechService.speak(response.text);
             setIsSpeaking(false);
+          } catch (ttsError) {
+            console.error('TTS fallback failed:', ttsError);
+            setVoiceError('Voice synthesis unavailable');
           }
         }
-      } else if (isVoiceEnabled && speechService.isSpeechSynthesisSupported()) {
-        // Fallback to browser TTS if no audio URL
+      } finally {
+        setIsProcessingVoice(false);
+      }
+    } else if (isVoiceEnabled && speechService.isSpeechSynthesisSupported()) {
+      setIsProcessingVoice(true);
+      try {
         setIsSpeaking(true);
         await speechService.speak(response.text);
         setIsSpeaking(false);
+      } catch (error) {
+        console.error('TTS failed:', error);
+        setVoiceError('Voice synthesis failed');
+      } finally {
+        setIsProcessingVoice(false);
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      const errorMessage = {
-        id: Date.now() + 1,
-        text: "I'm having trouble connecting right now. Please try again in a moment.",
-        isUser: false,
-        timestamp: new Date(),
-        isError: true
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('Error sending message:', error);
+    setVoiceError('Connection failed');
+    const errorMessage = {
+      id: Date.now() + 1,
+      text: "I'm having trouble connecting right now. Please try again in a moment.",
+      isUser: false,
+      timestamp: new Date(),
+      isError: true
+    };
+    setMessages(prev => [...prev, errorMessage]);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
-  const startVoiceRecording = async () => {
-    if (!speechService.isSpeechRecognitionSupported()) {
-      alert('Voice recording is not supported in your browser.');
-      return;
-    }
+const startVoiceRecording = async () => {
+  if (!speechService.isSpeechRecognitionSupported()) {
+    setVoiceError('Voice recording not supported in this browser');
+    return;
+  }
 
-    try {
-      setIsListening(true);
-      speechService.stopSpeaking();
-      setIsSpeaking(false);
-      
-      const transcript = await speechService.startListening();
-      setIsListening(false);
-      
-      if (transcript.trim()) {
-        await sendMessage(transcript);
-      }
-    } catch (error) {
-      console.error('Voice recording error:', error);
-      setIsListening(false);
-      alert('Voice recording failed. Please try again or type your message.');
+  try {
+    setVoiceError(null); // Clear previous errors
+    setIsListening(true);
+    setIsProcessingVoice(true);
+    speechService.stopSpeaking();
+    setIsSpeaking(false);
+    
+    const transcript = await speechService.startListening();
+    setIsListening(false);
+    setIsProcessingVoice(false);
+    
+    if (transcript.trim()) {
+      await sendMessage(transcript);
     }
-  };
+  } catch (error) {
+    console.error('Voice recording error:', error);
+    setIsListening(false);
+    setIsProcessingVoice(false);
+    setVoiceError('Voice recording failed - try again or type your message');
+  }
+};
 
   const stopVoiceRecording = () => {
     speechService.stopListening();
@@ -271,6 +298,7 @@ function ChatPage() {
                 <p>Starting conversation with Clementine...</p>
               </div>
             )}
+            
             
             {messages.map((message) => (
               <div
