@@ -34,49 +34,60 @@ function ChatPage() {
   }, [messages]);
 
   useEffect(() => {
-    // Detect mobile and check permissions
-    const checkMobileAndPermissions = async () => {
-      const isMobileDevice = speechService.isMobile;
-      setIsMobile(isMobileDevice);
-      
-      // Check current permission status
-      const permissions = await speechService.checkPermissionStatus();
-      setPermissionStatus(permissions);
-      
-      // Show permission request on mobile if needed
-      if (isMobileDevice && permissions.microphone === 'unknown') {
-        setShowPermissionRequest(true);
-      }
-    };
+  // Detect mobile and check permissions
+  const checkMobileAndPermissions = async () => {
+    const isMobileDevice = speechService.isMobile;
+    setIsMobile(isMobileDevice);
     
-    checkMobileAndPermissions();
+    // Check current permission status
+    const permissions = await speechService.checkPermissionStatus();
+    setPermissionStatus(permissions);
+    
+    // Show permission request on mobile if needed
+    if (isMobileDevice && permissions.microphone === 'unknown') {
+      setShowPermissionRequest(true);
+    }
+  };
+  
+  checkMobileAndPermissions();
 
-    // Set up speech service callbacks
-    speechService.onResult = (transcript) => {
-      console.log('Speech result:', transcript);
-      handleSendMessage(transcript);
-      setIsListening(false);
-    };
+  // Set up speech service callbacks
+  speechService.onResult = (transcript) => {
+    console.log('Speech result:', transcript);
+    setMessages(prev => {
+      const userMessage = {
+        id: Date.now(),
+        text: transcript,
+        isUser: true,
+        timestamp: new Date()
+      };
+      return [...prev, userMessage];
+    });
+    setIsListening(false);
+    
+    // Send message after adding to UI
+    handleSendMessage(transcript);
+  };
 
-    speechService.onError = (error) => {
-      console.error('Speech error:', error);
-      setError(error);
-      setIsListening(false);
-    };
+  speechService.onError = (error) => {
+    console.error('Speech error:', error);
+    setError(error);
+    setIsListening(false);
+  };
 
-    speechService.onStart = () => {
-      setIsListening(true);
-      setError('');
-    };
+  speechService.onStart = () => {
+    setIsListening(true);
+    setError('');
+  };
 
-    speechService.onEnd = () => {
-      setIsListening(false);
-    };
+  speechService.onEnd = () => {
+    setIsListening(false);
+  };
 
-    return () => {
-      speechService.cleanup();
-    };
-  }, []);
+  return () => {
+    speechService.cleanup();
+  };
+}, []); // Empty dependency array is correct here
 
   const playVoiceFlowAudio = (audioUrl) => {
     console.log('playVoiceFlowAudio called with:', audioUrl?.substring(0, 50) + '...');

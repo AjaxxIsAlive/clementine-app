@@ -287,5 +287,5 @@ class SpeechService {
     }
   }
 }
-
-export default new SpeechService();
+const speechServiceInstance = new SpeechService();
+export default speechServiceInstance;
