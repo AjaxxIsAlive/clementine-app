@@ -33,61 +33,130 @@ function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-  // Detect mobile and check permissions
-  const checkMobileAndPermissions = async () => {
-    const isMobileDevice = speechService.isMobile;
-    setIsMobile(isMobileDevice);
-    
-    // Check current permission status
-    const permissions = await speechService.checkPermissionStatus();
-    setPermissionStatus(permissions);
-    
-    // Show permission request on mobile if needed
-    if (isMobileDevice && permissions.microphone === 'unknown') {
-      setShowPermissionRequest(true);
-    }
-  };
-  
-  checkMobileAndPermissions();
+  const handleSendMessage = useCallback(async (messageText) => {
+    if (!messageText.trim() || isLoading) return;
 
-  // Set up speech service callbacks
-  speechService.onResult = (transcript) => {
-    console.log('Speech result:', transcript);
-    setMessages(prev => {
-      const userMessage = {
-        id: Date.now(),
-        text: transcript,
-        isUser: true,
+    setError('');
+
+    const userMessage = {
+      id: Date.now(),
+      text: messageText,
+      isUser: true,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
+    setIsLoading(true);
+
+    try {
+      const response = await voiceFlowAPI.interact(messageText);
+      
+      const assistantMessage = {
+        id: Date.now() + 1,
+        text: response.text || response,
+        isUser: false,
         timestamp: new Date()
       };
-      return [...prev, userMessage];
-    });
-    setIsListening(false);
+
+      setMessages(prev => [...prev, assistantMessage]);
+
+      // Enhanced voice processing with error handling
+      if (isVoiceEnabled && response.audioUrl) {
+        setIsProcessingVoice(true);
+        try {
+          await playVoiceFlowAudio(response.audioUrl);
+        } catch (error) {
+          console.error('VoiceFlow audio failed:', error);
+          setError('Audio playback failed');
+          
+          // Fallback to browser TTS
+          if (speechService.synthesis) {
+            try {
+              setIsSpeaking(true);
+              await speechService.speak(response.text);
+              setIsSpeaking(false);
+            } catch (ttsError) {
+              console.error('TTS fallback failed:', ttsError);
+              setError('Voice synthesis unavailable');
+            }
+          }
+        } finally {
+          setIsProcessingVoice(false);
+        }
+      } else if (isVoiceEnabled && speechService.synthesis) {
+        setIsProcessingVoice(true);
+        try {
+          setIsSpeaking(true);
+          await speechService.speak(response.text);
+          setIsSpeaking(false);
+        } catch (error) {
+          console.error('TTS failed:', error);
+          setError('Voice synthesis failed');
+        } finally {
+          setIsProcessingVoice(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setError('Connection failed');
+      const errorMessage = {
+        id: Date.now() + 1,
+        text: "I'm having trouble connecting right now. Please try again in a moment.",
+        isUser: false,
+        timestamp: new Date(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, isVoiceEnabled]);
+
+  useEffect(() => {
+    // Detect mobile and check permissions
+    const checkMobileAndPermissions = async () => {
+      const isMobileDevice = speechService.isMobile;
+      setIsMobile(isMobileDevice);
+      
+      // Check current permission status
+      const permissions = await speechService.checkPermissionStatus();
+      setPermissionStatus(permissions);
+      
+      // Show permission request on mobile if needed
+      if (isMobileDevice && permissions.microphone === 'unknown') {
+        setShowPermissionRequest(true);
+      }
+    };
     
-    // Send message after adding to UI
-    handleSendMessage(transcript);
-  };
+    checkMobileAndPermissions();
 
-  speechService.onError = (error) => {
-    console.error('Speech error:', error);
-    setError(error);
-    setIsListening(false);
-  };
+    // Set up speech service callbacks
+    speechService.onResult = (transcript) => {
+      console.log('Speech result:', transcript);
+      handleSendMessage(transcript);
+      setIsListening(false);
+    };
 
-  speechService.onStart = () => {
-    setIsListening(true);
-    setError('');
-  };
+    speechService.onError = (error) => {
+      console.error('Speech error:', error);
+      setError(error);
+      setIsListening(false);
+    };
 
-  speechService.onEnd = () => {
-    setIsListening(false);
-  };
+    speechService.onStart = () => {
+      setIsListening(true);
+      setError('');
+    };
 
-  return () => {
-    speechService.cleanup();
-  };
-}, []); // Empty dependency array is correct here
+    speechService.onEnd = () => {
+      setIsListening(false);
+    };
+
+    return () => {
+      speechService.cleanup();
+    };
+  }, [handleSendMessage]);
 
   const playVoiceFlowAudio = (audioUrl) => {
     console.log('playVoiceFlowAudio called with:', audioUrl?.substring(0, 50) + '...');
@@ -177,86 +246,6 @@ function ChatPage() {
       initializeConversation();
     }
   }, [hasStartedConversation, initializeConversation]);
-
-  const handleSendMessage = async (messageText) => {
-    if (!messageText.trim() || isLoading) return;
-
-    setError('');
-
-    const userMessage = {
-      id: Date.now(),
-      text: messageText,
-      isUser: true,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    setIsLoading(true);
-
-    try {
-      const response = await voiceFlowAPI.interact(messageText);
-      
-      const assistantMessage = {
-        id: Date.now() + 1,
-        text: response.text || response,
-        isUser: false,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-
-      // Enhanced voice processing with error handling
-      if (isVoiceEnabled && response.audioUrl) {
-        setIsProcessingVoice(true);
-        try {
-          await playVoiceFlowAudio(response.audioUrl);
-        } catch (error) {
-          console.error('VoiceFlow audio failed:', error);
-          setError('Audio playback failed');
-          
-          // Fallback to browser TTS
-          if (speechService.synthesis) {
-            try {
-              setIsSpeaking(true);
-              await speechService.speak(response.text);
-              setIsSpeaking(false);
-            } catch (ttsError) {
-              console.error('TTS fallback failed:', ttsError);
-              setError('Voice synthesis unavailable');
-            }
-          }
-        } finally {
-          setIsProcessingVoice(false);
-        }
-      } else if (isVoiceEnabled && speechService.synthesis) {
-        setIsProcessingVoice(true);
-        try {
-          setIsSpeaking(true);
-          await speechService.speak(response.text);
-          setIsSpeaking(false);
-        } catch (error) {
-          console.error('TTS failed:', error);
-          setError('Voice synthesis failed');
-        } finally {
-          setIsProcessingVoice(false);
-        }
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setError('Connection failed');
-      const errorMessage = {
-        id: Date.now() + 1,
-        text: "I'm having trouble connecting right now. Please try again in a moment.",
-        isUser: false,
-        timestamp: new Date(),
-        isError: true
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const requestPermissions = async () => {
     setError('');
