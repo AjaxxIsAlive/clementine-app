@@ -35,10 +35,18 @@ function ChatPage() {
 
   const stopPlayback = useCallback(async () => {
     try {
+      // Stop VoiceFlow audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      
+      // Stop speech synthesis
       await speechService.stopPlayback();
       setIsSpeaking(false);
     } catch (error) {
       console.error('Error stopping playback:', error);
+      setIsSpeaking(false);
     }
   }, []);
 
@@ -175,6 +183,12 @@ function ChatPage() {
         return;
       }
 
+      // Stop any current audio first
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+
       if (!audioRef.current) {
         audioRef.current = new Audio();
       }
@@ -192,9 +206,22 @@ function ChatPage() {
         reject(error);
       };
 
+      // Mobile-specific audio handling
+      audio.preload = 'metadata';
+      audio.crossOrigin = 'anonymous';
       audio.src = audioUrl;
+      
       setIsSpeaking(true);
-      audio.play().catch(reject);
+      
+      // For mobile browsers, we need to handle autoplay restrictions
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          console.error('Audio autoplay blocked:', error);
+          setIsSpeaking(false);
+          reject(error);
+        });
+      }
     });
   };
 
@@ -276,6 +303,11 @@ function ChatPage() {
   };
 
   const handleVoiceInput = async () => {
+    // Prevent multiple simultaneous requests
+    if (isProcessingVoice) {
+      return;
+    }
+
     // On mobile, check permissions first
     if (isMobile && permissionStatus.microphone !== 'granted') {
       setShowPermissionRequest(true);
@@ -283,22 +315,37 @@ function ChatPage() {
     }
 
     if (isListening) {
+      // Stop listening
       speechService.stopListening();
       setIsListening(false);
     } else {
+      // Stop any current playback before starting to listen
+      await stopPlayback();
+      
       setError('');
-      const success = await speechService.startListening();
-      if (!success) {
-        // Permission might have been revoked, show request again
-        if (isMobile) {
-          setShowPermissionRequest(true);
+      setIsProcessingVoice(true);
+      
+      try {
+        const success = await speechService.startListening();
+        if (!success) {
+          // Permission might have been revoked, show request again
+          if (isMobile) {
+            setShowPermissionRequest(true);
+          }
         }
+      } catch (error) {
+        console.error('Voice input error:', error);
+        setError('Voice input failed. Please try again.');
+      } finally {
+        setIsProcessingVoice(false);
       }
     }
   };
 
   const startRecording = () => {
-    handleVoiceInput();
+    if (!isListening && !isProcessingVoice) {
+      handleVoiceInput();
+    }
   };
 
   const stopRecording = () => {
@@ -308,10 +355,9 @@ function ChatPage() {
     }
   };
 
-  const toggleSpeech = () => {
+  const toggleSpeech = async () => {
     if (isSpeaking) {
-      speechService.synthesis.cancel();
-      setIsSpeaking(false);
+      await stopPlayback();
     }
     setIsVoiceEnabled(!isVoiceEnabled);
   };
@@ -497,20 +543,21 @@ function ChatPage() {
               
               {/* Microphone Button */}
               <button
-                onMouseDown={startRecording}
-                onMouseUp={stopRecording}
-                onTouchStart={startRecording}
-                onTouchEnd={stopRecording}
+                onClick={handleVoiceInput}
                 className={`px-4 py-3 rounded-xl transition-all duration-200 flex items-center justify-center min-w-[48px] ${
                   isListening 
                     ? 'bg-red-500 text-white scale-105 shadow-lg' 
+                    : isProcessingVoice
+                    ? 'bg-yellow-500 text-white shadow-md'
                     : 'bg-pink-500 text-white hover:bg-pink-600 shadow-md'
                 }`}
                 disabled={isLoading}
-                title="Hold to record voice message"
+                title={isListening ? "Tap to stop recording" : "Tap to start voice message"}
               >
                 {isListening ? (
                   <Square className="w-5 h-5" />
+                ) : isProcessingVoice ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Mic className="w-5 h-5" />
                 )}

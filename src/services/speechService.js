@@ -163,7 +163,7 @@ class SpeechService {
               : 'Microphone permission denied. Please allow access.';
             break;
           case 'no-speech':
-            errorMessage = 'No speech detected. Try speaking closer to your device.';
+            errorMessage = 'No speech detected. Please try again.';
             break;
           case 'network':
             errorMessage = 'Network error. Check your internet connection.';
@@ -171,8 +171,26 @@ class SpeechService {
           case 'audio-capture':
             errorMessage = 'Microphone not working. Check device settings.';
             break;
+          case 'aborted':
+            // Don't show error for aborted - it's usually intentional
+            return;
           default:
             errorMessage = `Voice recognition failed: ${event.error}`;
+        }
+      } else {
+        // Desktop error handling
+        switch (event.error) {
+          case 'aborted':
+            // Don't show error for aborted - it's usually intentional
+            return;
+          case 'not-allowed':
+            errorMessage = 'Microphone access denied. Please allow microphone access.';
+            break;
+          case 'no-speech':
+            errorMessage = 'No speech detected. Please try again.';
+            break;
+          default:
+            errorMessage = `Speech recognition error: ${event.error}`;
         }
       }
       
@@ -214,7 +232,16 @@ class SpeechService {
 
   stopListening() {
     if (this.recognition && this.isListening) {
+      this.isListening = false; // Set this first to prevent error messages
       this.recognition.stop();
+    }
+  }
+
+  // Force stop without triggering callbacks (for cleanup)
+  abort() {
+    if (this.recognition && this.isListening) {
+      this.isListening = false;
+      this.recognition.abort();
     }
   }
 
@@ -257,6 +284,19 @@ class SpeechService {
         }, 100);
       } else {
         this.synthesis.speak(utterance);
+      }
+    });
+  }
+
+  // Stop any current speech playback
+  stopPlayback() {
+    return new Promise((resolve) => {
+      if (this.synthesis) {
+        this.synthesis.cancel();
+        // Small delay to ensure cancellation is complete
+        setTimeout(resolve, 100);
+      } else {
+        resolve();
       }
     });
   }
