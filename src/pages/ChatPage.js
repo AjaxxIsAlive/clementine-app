@@ -23,12 +23,7 @@ function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-  if (!hasStartedConversation) {
-    initializeConversation();
-  }
-}, [hasStartedConversation, initializeConversation]);
-
+  
   const playVoiceFlowAudio = (audioUrl) => {
     console.log('playVoiceFlowAudio called with:', audioUrl?.substring(0, 50) + '...');
     return new Promise((resolve, reject) => {
@@ -110,7 +105,13 @@ function ChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isVoiceEnabled]);
+
+  useEffect(() => {
+  if (!hasStartedConversation) {
+    initializeConversation();
+  }
+}, [hasStartedConversation, initializeConversation]);
 
   const sendMessage = async (messageText) => {
     if (!messageText.trim() || isLoading) return;
