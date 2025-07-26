@@ -12,8 +12,11 @@ function FaceNavigation() {
   useEffect(() => {
     const updateImageSize = () => {
       if (imageRef.current) {
-        const rect = imageRef.current.getBoundingClientRect();
-        setImageSize({ width: rect.width, height: rect.height });
+        // Small delay to ensure image is fully rendered
+        setTimeout(() => {
+          const rect = imageRef.current.getBoundingClientRect();
+          setImageSize({ width: rect.width, height: rect.height });
+        }, 50);
       }
     };
 
@@ -55,20 +58,36 @@ function FaceNavigation() {
 
   // Calculate responsive coordinates based on current image size
   const getCoordinates = (topPercent, leftPercent, widthPercent, heightPercent) => {
+    if (!imageRef.current) return {};
+    
+    // Get element references for positioning calculation
+    const image = imageRef.current;
+    const gridContainer = image.parentElement;
+    const inlineBlockContainer = gridContainer.parentElement;
+    const centeringWrapper = inlineBlockContainer.parentElement;
+    
+    // Calculate position relative to the centering wrapper
+    const imageRect = image.getBoundingClientRect();
+    const centeringRect = centeringWrapper.getBoundingClientRect();
+    
+    // Calculate offset of image within the centering wrapper
+    const offsetTop = imageRect.top - centeringRect.top;
+    const offsetLeft = imageRect.left - centeringRect.left;
+    
     return {
-      top: (topPercent / 100) * imageSize.height,
-      left: (leftPercent / 100) * imageSize.width,
-      width: (widthPercent / 100) * imageSize.width,
-      height: (heightPercent / 100) * imageSize.height,
+      top: offsetTop + (topPercent / 100) * imageRect.height,
+      left: offsetLeft + (leftPercent / 100) * imageRect.width,
+      width: (widthPercent / 100) * imageRect.width,
+      height: (heightPercent / 100) * imageRect.height,
     };
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex flex-col items-center justify-center p-4">
-      <div className="relative w-full max-w-sm mx-auto mb-8 flex justify-center items-center">
+      <div className="relative max-w-sm mx-auto mb-8">
         
         {/* IMAGE CONTAINER */}
-        <div className="relative inline-block mx-auto">
+        <div className="relative" style={{ display: 'inline-block', margin: '0 auto' }}>
           
           {/* IMAGE STACK - All images in same grid cell */}
           <div style={{ 
