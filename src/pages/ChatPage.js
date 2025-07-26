@@ -346,74 +346,102 @@ const startVoiceRecording = async () => {
           </div>
         </div>
 
-        {/* Input Form */}
         <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-xl border border-pink-100 p-6">
-          <div className="flex space-x-4">
-            {/* Voice Button */}
-            <button
-              type="button"
-              onClick={isListening ? stopVoiceRecording : startVoiceRecording}
-              disabled={isLoading || isSpeaking}
-              className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-semibold transition-all duration-300 ${
-                isListening
-                  ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
-                  : speechService.isSpeechRecognitionSupported()
-                  ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-            </button>
+  <div className="flex space-x-4">
+    {/* Push to Talk Button */}
+    <div className="flex-shrink-0">
+      {isSpeaking && (
+        <button
+          type="button"
+          onClick={() => {
+            speechService.stopSpeaking();
+            setIsSpeaking(false);
+          }}
+          className="w-12 h-12 rounded-full bg-red-500 text-white hover:bg-red-600 flex items-center justify-center font-semibold transition-all duration-300 mb-2"
+        >
+          ⏹️
+        </button>
+      )}
+      
+      <button
+        type="button"
+        onMouseDown={startVoiceRecording}
+        onMouseUp={stopVoiceRecording}
+        onTouchStart={startVoiceRecording}
+        onTouchEnd={stopVoiceRecording}
+        disabled={isLoading}
+        className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold transition-all duration-300 ${
+          isListening
+            ? 'bg-red-500 text-white animate-pulse scale-110'
+            : speechService.isSpeechRecognitionSupported()
+            ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600'
+            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+        }`}
+      >
+        🎤
+      </button>
+    </div>
 
-            {/* Text Input */}
-            <div className="flex-1 flex space-x-4">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Type your message or use voice..."
-                disabled={isLoading || isListening}
-                className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
-              />
-              
-              {/* Send Button */}
-              <button
-                type="submit"
-                disabled={isLoading || !inputMessage.trim() || isListening}
-                className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-semibold transition-all duration-300 ${
-                  isLoading || !inputMessage.trim() || isListening
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600'
-                }`}
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-          
-          {/* Status Indicators */}
-          <div className="mt-4 flex justify-between items-center text-sm text-gray-500">
-            <div className="flex space-x-4">
-              {isListening && (
-                <span className="text-red-500 font-medium animate-pulse">
-                  🎤 Listening...
-                </span>
-              )}
-              {isSpeaking && (
-                <span className="text-blue-500 font-medium">
-                  🔊 Clementine is speaking...
-                </span>
-              )}
-            </div>
-            
-            <div className="text-xs">
-              {speechService.isSpeechRecognitionSupported() 
-                ? "Voice input supported" 
-                : "Voice input not available"}
-            </div>
-          </div>
-        </form>
+    {/* Text Input */}
+    <div className="flex-1 flex space-x-4">
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputMessage}
+        onChange={(e) => setInputMessage(e.target.value)}
+        placeholder="Type your message or hold mic to talk..."
+        disabled={isLoading || isListening}
+        className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+      />
+      
+      {/* Send Button */}
+      <button
+        type="submit"
+        disabled={isLoading || !inputMessage.trim() || isListening}
+        className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-semibold transition-all duration-300 ${
+          isLoading || !inputMessage.trim() || isListening
+            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            : 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600'
+        }`}
+      >
+        <Send className="w-5 h-5" />
+      </button>
+    </div>
+  </div>
+  
+  {/* Enhanced Status Indicators */}
+  <div className="mt-4 flex justify-between items-center text-sm">
+    <div className="flex space-x-4">
+      {isListening && (
+        <span className="text-red-500 font-bold animate-pulse text-lg">
+          🔴 HOLD TO TALK - Release to send
+        </span>
+      )}
+      {isSpeaking && (
+        <span className="text-blue-500 font-medium flex items-center">
+          🔊 Clementine is speaking... 
+          <span className="ml-2 text-xs">(Press ⏹️ to stop)</span>
+        </span>
+      )}
+      {isProcessingVoice && (
+        <span className="text-purple-500 font-medium animate-pulse">
+          🎤 Processing your voice...
+        </span>
+      )}
+      {voiceError && (
+        <span className="text-red-600 font-medium">
+          ⚠️ {voiceError}
+        </span>
+      )}
+    </div>
+    
+    <div className="text-xs text-gray-500">
+      {speechService.isSpeechRecognitionSupported() 
+        ? "Hold mic button to talk" 
+        : "Voice input not available"}
+    </div>
+  </div>
+</form>
       </div>
     </div>
   );
