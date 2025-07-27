@@ -156,26 +156,35 @@ function ChatPage() {
 
     // Set up speech service callbacks
     speechService.onResult = (transcript) => {
-      console.log('Speech result received:', transcript);
-      handleSendMessage(transcript);
-      setIsListening(false);
+      console.log('🎯 ChatPage received speech result:', transcript);
+      console.log('🚀 About to call handleSendMessage with transcript:', transcript);
+      
+      // Small delay to ensure UI state is properly updated
+      setTimeout(() => {
+        handleSendMessage(transcript);
+        setIsListening(false);
+        setIsProcessingVoice(false); // Clear processing state when result is received
+      }, 50);
     };
 
     speechService.onError = (error) => {
       console.error('Speech error received:', error);
       setError(error);
       setIsListening(false);
+      setIsProcessingVoice(false); // Clear processing state on error
     };
 
     speechService.onStart = () => {
       console.log('Speech recognition started');
       setIsListening(true);
       setError('');
+      setIsProcessingVoice(false); // Clear processing state when actually started
     };
 
     speechService.onEnd = () => {
       console.log('Speech recognition ended');
       setIsListening(false);
+      setIsProcessingVoice(false); // Clear processing state when ended
     };
 
     return () => {
@@ -372,6 +381,59 @@ function ChatPage() {
     }
   };
 
+  // Push-to-talk: Start recording when button is pressed
+  const handleVoiceStart = async () => {
+    console.log('🎤 handleVoiceStart called (push-to-talk START)');
+    
+    // If currently speaking, stop the speech instead of starting voice input
+    if (isSpeaking) {
+      console.log('🛑 Stopping speech playback');
+      await stopPlayback();
+      return;
+    }
+    
+    // Prevent multiple simultaneous requests
+    if (isListening) {
+      console.log('⚠️ Already listening, returning');
+      return;
+    }
+
+    // On mobile, check permissions first
+    if (isMobile && permissionStatus.microphone !== 'granted') {
+      console.log('Mobile permission not granted, showing request');
+      setShowPermissionRequest(true);
+      return;
+    }
+
+    // Start voice input
+    console.log('🎤 Starting push-to-talk recording');
+    setError('');
+    
+    try {
+      const success = await speechService.startListening();
+      console.log('Speech service start result:', success);
+      if (!success) {
+        if (isMobile) {
+          setShowPermissionRequest(true);
+        }
+      }
+    } catch (error) {
+      console.error('Voice input error:', error);
+      setError('Voice input failed. Please try again.');
+    }
+  };
+
+  // Push-to-talk: Stop recording when button is released
+  const handleVoiceEnd = () => {
+    console.log('🛑 handleVoiceEnd called (push-to-talk END)');
+    
+    if (isListening) {
+      console.log('🛑 Stopping push-to-talk recording');
+      speechService.stopListening();
+      setIsListening(false);
+    }
+  };
+
   const toggleSpeech = async () => {
     if (isSpeaking) {
       await stopPlayback();
@@ -554,29 +616,71 @@ function ChatPage() {
                 className="flex-1 px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
               />
               
-              {/* Microphone/Stop Button */}
+              {/* Microphone/Stop Button - Push-to-Talk */}
               <button
-                onClick={() => {
-                  console.log('🔥 BUTTON CLICKED! States:', { isLoading, isListening, isSpeaking, isProcessingVoice });
-                  handleVoiceInput();
+                // Touch events for mobile push-to-talk
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  console.log('📱 TOUCH START - Push-to-talk BEGIN');
+                  handleVoiceStart();
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  console.log('📱 TOUCH END - Push-to-talk RELEASE');
+                  handleVoiceEnd();
+                }}
+                onTouchCancel={(e) => {
+                  e.preventDefault();
+                  console.log('� TOUCH CANCEL - Push-to-talk RELEASE');
+                  handleVoiceEnd();
+                }}
+                // Mouse events for desktop
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  console.log('🖱️ MOUSE DOWN - Push-to-talk BEGIN (desktop)');
+                  handleVoiceStart();
+                }}
+                onMouseUp={(e) => {
+                  e.preventDefault();
+                  console.log('🖱️ MOUSE UP - Push-to-talk RELEASE (desktop)');
+                  handleVoiceEnd();
+                }}
+                onMouseLeave={(e) => {
+                  if (isListening) {
+                    e.preventDefault();
+                    console.log('🖱️ MOUSE LEAVE - Push-to-talk RELEASE (desktop)');
+                    handleVoiceEnd();
+                  }
+                }}
+                // Click fallback for stopping speech
+                onClick={(e) => {
+                  e.preventDefault();
+                  console.log('�🔥 BUTTON CLICKED! States:', { isLoading, isListening, isSpeaking, isProcessingVoice });
+                  // Only use click for stopping speech, not for voice input
+                  if (isSpeaking) {
+                    handleVoiceInput();
+                  }
                 }}
                 style={{
-                  backgroundColor: isListening ? '#dc2626' : isSpeaking ? '#b91c1c' : isProcessingVoice ? '#eab308' : '#ec4899',
+                  backgroundColor: isListening ? '#dc2626' : isSpeaking ? '#b91c1c' : '#ec4899',
                   color: 'white',
                   fontWeight: 'bold',
                   fontSize: '16px',
                   transform: isListening ? 'scale(1.1)' : 'scale(1)',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  opacity: (isLoading && !isListening && !isSpeaking) ? 0.5 : 1,
-                  minWidth: '48px',
-                  minHeight: '48px'
+                  opacity: 1, // Always available
+                  minWidth: '64px',
+                  minHeight: '64px',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  WebkitTouchCallout: 'none'
                 }}
-                className="px-4 py-3 rounded-xl transition-all duration-200 flex items-center justify-center min-w-[48px]"
-                disabled={false}
+                className="px-4 py-3 rounded-xl transition-all duration-200 flex items-center justify-center min-w-[64px]"
+                disabled={false} // Never disabled
                 title={
-                  isListening ? "🛑 TAP TO STOP RECORDING" : 
+                  isListening ? "🛑 RELEASE TO STOP RECORDING" : 
                   isSpeaking ? "🛑 TAP TO STOP CLEMENTINE" :
-                  "🎤 TAP TO START VOICE"
+                  isMobile ? "🎤 HOLD TO TALK" : "🎤 HOLD/CLICK TO TALK"
                 }
               >
                 {isListening ? (

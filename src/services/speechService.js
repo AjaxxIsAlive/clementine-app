@@ -7,6 +7,17 @@ class SpeechService {
     this.onError = null;
     this.onStart = null;
     this.onEnd = null;
+    this.speechTimeout = null; // Instance variable for timeout
+    this.fallbackTimeout = null; // Backup timeout in case events don't fire
+    
+    // Push-to-talk result storage - collect ALL results
+    this.collectedResults = [];
+    this.latestInterimResult = null;
+    this.processedResults = new Set(); // Track which results we've already processed
+    
+    // Session tracking to prevent cross-contamination
+    this.currentSessionId = null;
+    this.sessionCounter = 0;
     
     // Mobile permission tracking
     this.permissionStatus = {
@@ -117,8 +128,53 @@ class SpeechService {
     }
   }
 
+  // Browser compatibility check
+  checkBrowserCompatibility() {
+    const issues = [];
+    
+    // Check speech recognition support
+    if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+      issues.push('Speech recognition not supported in this browser');
+    }
+    
+    // Check getUserMedia support for microphone
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      issues.push('Microphone access not supported in this browser');
+    }
+    
+    // Browser-specific warnings
+    const userAgent = navigator.userAgent.toLowerCase();
+    if (userAgent.includes('firefox')) {
+      issues.push('Firefox has limited speech recognition support. Chrome or Safari recommended.');
+    }
+    if (userAgent.includes('edge')) {
+      issues.push('Microsoft Edge speech recognition may be unreliable. Chrome recommended.');
+    }
+    
+    // Check if running in secure context (HTTPS or localhost)
+    if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+      issues.push('Speech recognition requires HTTPS in production');
+    }
+    
+    return {
+      isSupported: issues.length === 0,
+      issues: issues,
+      userAgent: userAgent,
+      isSecure: window.isSecureContext
+    };
+  }
+
   // Initialize speech recognition with mobile handling
   initializeSpeechRecognition() {
+    const compatibility = this.checkBrowserCompatibility();
+    
+    if (!compatibility.isSupported) {
+      console.log('❌ Browser compatibility issues:', compatibility.issues);
+      throw new Error(`Speech recognition not supported: ${compatibility.issues.join(', ')}`);
+    }
+    
+    console.log('✅ Browser compatibility check passed');
+    
     if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
       throw new Error('Speech recognition not supported');
     }
@@ -126,131 +182,221 @@ class SpeechService {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     this.recognition = new SpeechRecognition();
     
-    // Mobile-optimized settings
+    // Push-to-talk optimized settings - truly continuous recording
     if (this.isMobile) {
-      this.recognition.continuous = false; // Better for mobile
-      this.recognition.interimResults = false; // Reduce processing on mobile
+      this.recognition.continuous = true; // Enable continuous for push-to-talk
+      this.recognition.interimResults = true; // Show interim results for feedback
     } else {
-      // Desktop: Use single-shot mode for better UX (like mobile)
-      this.recognition.continuous = false; // Single utterance detection
+      // Desktop: Use continuous mode for push-to-talk
+      this.recognition.continuous = true; // Continuous recording while button is held
       this.recognition.interimResults = true; // Show interim results for feedback
     }
     
     this.recognition.lang = 'en-US';
     this.recognition.maxAlternatives = 1;
 
-    // Add timeout to prevent infinite listening
-    let speechTimeout;
+    // Clear any existing timeouts
+    if (this.speechTimeout) {
+      clearTimeout(this.speechTimeout);
+      this.speechTimeout = null;
+    }
+    if (this.fallbackTimeout) {
+      clearTimeout(this.fallbackTimeout);
+      this.fallbackTimeout = null;
+    }
+    
+    // Clear any stored results from previous session
+    this.collectedResults = [];
+    this.latestInterimResult = null;
+    this.processedResults = new Set(); // Track which results we've already processed
+    
+    // Note: Session ID will be generated in startListening()
+    console.log('🔧 Speech recognition initialized (session will be created on start)');
 
     this.recognition.onstart = () => {
+      console.log('🎤 Speech recognition started for session:', this.currentSessionId);
       this.isListening = true;
       if (this.onStart) this.onStart();
       
-      // Set a timeout to automatically stop listening after 10 seconds
-      speechTimeout = setTimeout(() => {
-        console.log('Speech recognition timeout - auto stopping');
-        if (this.isListening) {
-          this.stopListening();
-          if (this.onError) this.onError('No speech detected. Please try again.');
+      // No automatic timeout for push-to-talk mode - user controls duration
+      // Keep a safety fallback timeout to prevent stuck sessions
+      this.fallbackTimeout = setTimeout(() => {
+        console.log('🚨 SAFETY timeout (60s) - force stopping stuck recognition for session:', this.currentSessionId);
+        if (this.isListening && this.currentSessionId) {
+          this.isListening = false;
+          if (this.recognition) {
+            try {
+              this.recognition.abort();
+            } catch (e) {
+              console.log('Error aborting recognition:', e);
+            }
+          }
+          if (this.onError) this.onError('Session timeout. Please try again.');
+          if (this.onEnd) this.onEnd();
         }
-      }, 10000); // 10 second timeout
+      }, 60000); // 60 second safety timeout only
     };
 
     this.recognition.onresult = (event) => {
-      // Clear the timeout since we got a result
-      if (speechTimeout) {
-        clearTimeout(speechTimeout);
-        speechTimeout = null;
+      const activeSessionId = this.currentSessionId;
+      console.log('🗣️ Speech recognition result received for session:', activeSessionId, '| Total results:', event.results.length);
+      
+      // Ignore results from old sessions
+      if (!this.isListening || !activeSessionId) {
+        console.log('⚠️ Ignoring result - not listening or no active session');
+        return;
       }
       
-      const result = event.results[event.results.length - 1];
+      // Clear safety timeout since we got a result
+      if (this.fallbackTimeout) {
+        console.log('✅ Clearing safety timeout due to result');
+        clearTimeout(this.fallbackTimeout);
+        this.fallbackTimeout = null;
+      }
       
-      // For desktop: trigger on any confident result to be more responsive
-      if (!this.isMobile && result[0].confidence > 0.5 && result[0].transcript.trim().length > 0) {
-        if (this.onResult) {
-          this.onResult(result[0].transcript);
-          // Stop recognition immediately to prevent the 3-second wait
-          this.stopListening();
+      // Process ALL results, not just the latest one
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        const transcript = result[0].transcript.trim();
+        const confidence = result[0].confidence || 0;
+        const isFinal = result.isFinal;
+        
+        console.log(`📝 Session: ${activeSessionId} | Result ${i}: "${transcript}" | Confidence: ${confidence} | Final: ${isFinal}`);
+        
+        if (isFinal) {
+          // Check if we've already processed this result
+          const resultKey = `${i}_${transcript}`;
+          if (!this.processedResults) {
+            this.processedResults = new Set();
+          }
+          
+          if (!this.processedResults.has(resultKey) && transcript) {
+            console.log('📝 NEW final result for session:', activeSessionId, '| Text:', transcript);
+            this.collectedResults.push(transcript);
+            this.processedResults.add(resultKey);
+            console.log('📚 Session:', activeSessionId, '| All collected results:', this.collectedResults);
+          } else {
+            console.log('🔄 Duplicate or empty result, skipping:', resultKey);
+          }
+        } else {
+          // Store the latest interim result for live feedback
+          console.log('⏳ Interim result for session:', activeSessionId, '| Text:', transcript);
+          this.latestInterimResult = transcript;
         }
       }
-      // For mobile: only trigger on final results
-      else if (this.isMobile && result.isFinal && this.onResult) {
-        this.onResult(result[0].transcript);
-      }
-      // Fallback: trigger on final results if confidence check didn't work
-      else if (!this.isMobile && result.isFinal && this.onResult) {
-        this.onResult(result[0].transcript);
+      
+      // After processing all results, combine all interim results from this event
+      if (activeSessionId === this.currentSessionId) {
+        let combinedInterim = '';
+        for (let i = 0; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (!result.isFinal && result[0]) {
+            const transcript = result[0].transcript.trim();
+            if (transcript) {
+              combinedInterim += (combinedInterim ? ' ' : '') + transcript;
+            }
+          }
+        }
+        if (combinedInterim) {
+          this.latestInterimResult = combinedInterim;
+          console.log('🔗 Combined interim for session:', activeSessionId, '| Full text:', combinedInterim);
+        }
       }
     };
 
     this.recognition.onerror = (event) => {
-      this.isListening = false;
-      let errorMessage = 'Speech recognition error';
+      console.log('❌ Speech recognition error:', event.error);
       
-      // Mobile-specific error handling
-      if (this.isMobile) {
-        switch (event.error) {
-          case 'not-allowed':
-            errorMessage = this.isIOS 
-              ? 'Microphone blocked. Check Safari settings.' 
-              : 'Microphone permission denied. Please allow access.';
-            break;
-          case 'no-speech':
-            errorMessage = 'No speech detected. Please try again.';
-            break;
-          case 'network':
-            errorMessage = 'Network error. Check your internet connection.';
-            break;
-          case 'audio-capture':
-            errorMessage = 'Microphone not working. Check device settings.';
-            break;
-          case 'aborted':
-            // Don't show error for aborted - it's usually intentional
-            return;
-          default:
-            errorMessage = `Voice recognition failed: ${event.error}`;
-        }
-      } else {
-        // Desktop error handling
-        switch (event.error) {
-          case 'aborted':
-            // Don't show error for aborted - it's usually intentional
-            return;
-          case 'not-allowed':
-            errorMessage = 'Microphone access denied. Please allow microphone access.';
-            break;
-          case 'no-speech':
-            errorMessage = 'No speech detected. Please try again.';
-            break;
-          default:
-            errorMessage = `Speech recognition error: ${event.error}`;
-        }
+      // Clear safety timeout on error
+      if (this.fallbackTimeout) {
+        console.log('🧹 Clearing safety timeout due to error');
+        clearTimeout(this.fallbackTimeout);
+        this.fallbackTimeout = null;
       }
       
+      let errorMessage = 'Speech recognition error';
+      
+      // Handle specific errors differently for push-to-talk
+      switch (event.error) {
+        case 'aborted':
+          // Don't show error for aborted - it's usually intentional
+          return;
+        case 'no-speech':
+          // For push-to-talk, no-speech during long pauses is normal
+          if (this.isListening) {
+            console.log('🔄 No speech detected but user still holding - continuing...');
+            return; // Don't treat as error, keep listening
+          }
+          errorMessage = 'No speech detected. Please try again.';
+          break;
+        case 'not-allowed':
+          errorMessage = this.isMobile 
+            ? (this.isIOS ? 'Microphone blocked. Check Safari settings.' : 'Microphone permission denied. Please allow access.')
+            : 'Microphone access denied. Please allow microphone access.';
+          break;
+        case 'network':
+          errorMessage = 'Network error. Check your internet connection.';
+          break;
+        case 'audio-capture':
+          errorMessage = this.isMobile 
+            ? 'Microphone not working. Check device settings.'
+            : 'Microphone not working. Check device settings.';
+          break;
+        default:
+          errorMessage = `Voice recognition failed: ${event.error}`;
+      }
+      
+      this.isListening = false;
       if (this.onError) this.onError(errorMessage);
     };
 
     this.recognition.onend = () => {
-      // Clear the timeout when recognition ends
-      if (speechTimeout) {
-        clearTimeout(speechTimeout);
-        speechTimeout = null;
+      const sessionId = this.currentSessionId;
+      console.log('🔚 Speech recognition ended for session:', sessionId, '| isListening:', this.isListening);
+      
+      // Clear safety timeout when recognition ends
+      if (this.fallbackTimeout) {
+        console.log('🧹 Clearing safety timeout on end for session:', sessionId);
+        clearTimeout(this.fallbackTimeout);
+        this.fallbackTimeout = null;
       }
       
-      this.isListening = false;
-      if (this.onEnd) this.onEnd();
+      // If we're still supposed to be listening (user still holding button), restart recognition
+      if (this.isListening && sessionId) {
+        console.log('🔄 Recognition ended but user still holding button - restarting session:', sessionId);
+        try {
+          this.recognition.start();
+        } catch (error) {
+          console.log('❌ Failed to restart recognition for session:', sessionId, '| Error:', error);
+          this.isListening = false;
+          this.currentSessionId = null;
+          if (this.onEnd) this.onEnd();
+        }
+      } else {
+        // User released button or session was cleared, normal end
+        console.log('✅ Normal recognition end for session:', sessionId);
+        if (this.onEnd) this.onEnd();
+      }
     };
     
-    // Store timeout reference for cleanup
-    this.speechTimeout = speechTimeout;
+    // Timeout is now stored as instance variable this.speechTimeout
   }
 
   // Start listening with permission check
   async startListening() {
+    console.log('🚀 startListening called, current state:', {
+      isListening: this.isListening,
+      hasRecognition: !!this.recognition,
+      isMobile: this.isMobile,
+      micPermission: this.permissionStatus.microphone
+    });
+    
     // Check permissions first on mobile
     if (this.isMobile && this.permissionStatus.microphone !== 'granted') {
+      console.log('📱 Requesting mobile permissions...');
       const permissionResult = await this.requestMobilePermissions();
       if (!permissionResult.success) {
+        console.log('❌ Permission request failed:', permissionResult.message);
         if (this.onError) this.onError(permissionResult.message);
         return false;
       }
@@ -258,31 +404,97 @@ class SpeechService {
 
     try {
       if (!this.recognition) {
+        console.log('🔧 Initializing speech recognition...');
         this.initializeSpeechRecognition();
       }
       
+      // Generate new session ID here, not in initialization
+      this.sessionCounter++;
+      this.currentSessionId = `session_${this.sessionCounter}_${Date.now()}`;
+      console.log('🆔 Starting new speech session:', this.currentSessionId);
+      
+      // Clear any stored results from previous session
+      this.collectedResults = [];
+      this.latestInterimResult = null;
+      this.processedResults = new Set();
+      
+      console.log('▶️ Starting recognition...');
       this.recognition.start();
       return true;
     } catch (error) {
+      console.log('❌ Failed to start recognition:', error.message);
       const errorMessage = this.isMobile 
         ? 'Voice input failed. Please check microphone permissions.' 
-        : 'Speech recognition failed to start';
+        : `Speech recognition failed to start: ${error.message}`;
       if (this.onError) this.onError(errorMessage);
       return false;
     }
   }
 
   stopListening() {
-    if (this.recognition && this.isListening) {
+    const sessionId = this.currentSessionId;
+    console.log('🛑 stopListening called for session:', sessionId, '| isListening:', this.isListening);
+    
+    if (this.recognition && this.isListening && sessionId) {
       this.isListening = false; // Set this first to prevent error messages
+      
+      // Clear safety timeout when manually stopping
+      if (this.fallbackTimeout) {
+        console.log('🧹 Clearing safety timeout on manual stop for session:', sessionId);
+        clearTimeout(this.fallbackTimeout);
+        this.fallbackTimeout = null;
+      }
+      
+      // Combine all collected results into one transcript
+      let finalTranscript = '';
+      
+      if (this.collectedResults.length > 0) {
+        // Join all final results with spaces
+        finalTranscript = this.collectedResults.join(' ').trim();
+        console.log('✅ Session:', sessionId, '| Combined final results:', finalTranscript);
+      } else if (this.latestInterimResult) {
+        // If no final results, use interim result
+        finalTranscript = this.latestInterimResult.trim();
+        console.log('✅ Session:', sessionId, '| Using interim result:', finalTranscript);
+      }
+      
+      // Clear session data BEFORE processing result to prevent race conditions
+      this.collectedResults = [];
+      this.latestInterimResult = null;
+      this.processedResults = new Set(); // Clear processed results tracking
+      const completedSessionId = this.currentSessionId;
+      this.currentSessionId = null; // Clear session ID to ignore any delayed results
+      
+      if (finalTranscript && this.onResult) {
+        console.log('✅ Processing transcript for completed session:', completedSessionId, '| Text:', finalTranscript);
+        // Use setTimeout to ensure this happens after current call stack
+        setTimeout(() => {
+          this.onResult(finalTranscript);
+        }, 0);
+      } else {
+        console.log('❌ No speech result collected for session:', completedSessionId);
+      }
+      
       this.recognition.stop();
+    } else {
+      console.log('⚠️ stopListening called but recognition not active or no session');
     }
   }
 
   // Force stop without triggering callbacks (for cleanup)
   abort() {
+    console.log('💥 abort called');
+    
     if (this.recognition && this.isListening) {
       this.isListening = false;
+      
+      // Clear safety timeout on abort
+      if (this.fallbackTimeout) {
+        console.log('🧹 Clearing safety timeout on abort');
+        clearTimeout(this.fallbackTimeout);
+        this.fallbackTimeout = null;
+      }
+      
       this.recognition.abort();
     }
   }
@@ -313,9 +525,10 @@ class SpeechService {
 
       utterance.onend = () => resolve();
       utterance.onerror = (error) => {
+        console.log('TTS error:', error);
         const errorMessage = this.isMobile 
           ? 'Voice playback failed. Check device volume settings.' 
-          : 'Text-to-speech error';
+          : `Text-to-speech error: ${error.error || 'unknown'}`;
         reject(new Error(errorMessage));
       };
 
