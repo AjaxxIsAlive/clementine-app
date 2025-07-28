@@ -70,7 +70,7 @@ function VoiceFlowAPIChat() {
         recognitionRef.current.stop();
       }
     };
-  }, []);
+  }, [handleSendMessage]);
 
   // Initialize conversation
   const initializeConversation = useCallback(async () => {

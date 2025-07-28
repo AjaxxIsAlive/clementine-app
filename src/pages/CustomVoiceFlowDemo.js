@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Volume2, VolumeX, Send, MessageSquare, Heart, Star } from 'lucide-react';
+import { Mic, Square, Volume2, VolumeX, Send, Heart, Star } from 'lucide-react';
 
 // DEMO VERSION - Shows what the Custom UI option would look like
 // This is a working preview without VoiceFlow SDK dependencies
