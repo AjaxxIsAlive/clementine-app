@@ -155,185 +155,78 @@ function ChatPage() {
   }, [isVoiceFlowLoaded]);
 
  const handleFaceClick = () => {
-  console.log('Face clicked - attempting to start voice conversation...');
+  console.log('👆 Face clicked! Attempting Shadow DOM voice activation...');
   
-  // Method 1: Try to find and click the voice call button directly
-  const findAndClickVoiceButton = () => {
-    // Comprehensive selectors for VoiceFlow voice button
-    const possibleSelectors = [
-      // Data attributes
-      '[data-testid="voice-button"]',
-      '[data-testid*="voice"]',
-      '[data-testid*="call"]',
-      '[data-voice="true"]',
-      '[data-action="voice"]',
-      
-      // Aria labels
-      'button[aria-label*="voice"]',
-      'button[aria-label*="call"]',
-      'button[aria-label*="microphone"]',
-      'button[aria-label*="speak"]',
-      'button[aria-label*="start"]',
-      
-      // Titles
-      'button[title*="voice"]',
-      'button[title*="call"]',
-      'button[title*="microphone"]',
-      
-      // Class names (VoiceFlow specific)
-      '.vfrc-button--voice',
-      '.vfrc-voice-button',
-      '.vf-voice-button',
-      '.voice-button',
-      '.call-button',
-      '.microphone-button',
-      
-      // Generic button patterns
-      'button:has(svg[data-icon="microphone"])',
-      'button:has(svg[data-icon="voice"])',
-      'button:has(.microphone-icon)',
-      'button:has(.voice-icon)',
-      
-      // VoiceFlow widget specific
-      'iframe[src*="voiceflow"] button',
-      '[class*="voiceflow"] button',
-      '[id*="voiceflow"] button'
-    ];
-    
-    console.log('🔍 Trying', possibleSelectors.length, 'voice button selectors...');
-
-    for (const selector of possibleSelectors) {
-      try {
-        const button = document.querySelector(selector);
-        if (button && button.offsetParent !== null) { // Check if visible
-          console.log(`Found voice button with selector: ${selector}`);
-          button.click();
-          return true;
-        }
-      } catch (error) {
-        console.log(`Selector ${selector} failed:`, error);
-      }
-    }
-    return false;
-  };
-
-// INSTRUCTIONS: 
-// 1. Open src/pages/ChatPageNew.js
-// 2. DELETE lines 96-121 (entire current handleFaceClick function)  
-// 3. REPLACE with this complete function above
-
-  // Method 2: Look for buttons containing voice-related text
-  const findVoiceButtonByText = () => {
-    const buttons = document.querySelectorAll('button');
-    const voiceTexts = ['start a call', 'voice', 'call', 'microphone', 'speak'];
-    
-    for (const button of buttons) {
-      const text = button.textContent.toLowerCase();
-      const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
-      const title = (button.getAttribute('title') || '').toLowerCase();
-      
-      if (voiceTexts.some(voiceText => 
-        text.includes(voiceText) || 
-        ariaLabel.includes(voiceText) || 
-        title.includes(voiceText)
-      )) {
-        console.log(`Found voice button by text: "${button.textContent}"`);
-        button.click();
-        return true;
-      }
-    }
-    return false;
-  };
-
-  // Method 3: Try to access VoiceFlow's internal API for voice mode
-  const tryVoiceFlowAPI = () => {
-    try {
-      if (window.voiceflow && window.voiceflow.chat) {
-        // First open the chat if needed
-        window.voiceflow.chat.open();
-        
-        // Try different voice activation methods
-        setTimeout(() => {
-          if (window.voiceflow.chat.startVoice) {
-            console.log('Trying voiceflow.chat.startVoice()');
-            window.voiceflow.chat.startVoice();
-            return true;
-          }
-          
-          if (window.voiceflow.chat.voice) {
-            console.log('Trying voiceflow.chat.voice()');
-            window.voiceflow.chat.voice();
-            return true;
-          }
-
-          // Try to trigger voice through events
-          const voiceEvent = new CustomEvent('voiceflow-start-voice');
-          document.dispatchEvent(voiceEvent);
-          
-          return false;
-        }, 500);
-      }
-    } catch (error) {
-      console.log('VoiceFlow API method failed:', error);
-    }
-    return false;
-  };
-
-  // Execute methods in order of preference
-  let success = false;
-  
-  // Try DOM button finding first (most reliable)
-  success = findAndClickVoiceButton();
-  
-  if (!success) {
-    success = findVoiceButtonByText();
-  }
-  
-  if (!success) {
-    console.log('DOM methods failed, trying VoiceFlow API...');
-    tryVoiceFlowAPI();
+  if (!isVoiceFlowLoaded) {
+    console.log('⏳ VoiceFlow still loading...');
+    return;
   }
 
-  // If all else fails, wait for widget to load and try again
-  if (!success) {
-    console.log('Initial attempts failed, waiting for widget...');
+  try {
+    // PROVEN WORKING METHOD: Access Shadow DOM directly
+    if (window.voiceflow && window.voiceflow.chat && window.voiceflow.chat._shadowRoot) {
+      console.log('🎯 Accessing VoiceFlow Shadow DOM...');
+      
+      const shadowRoot = window.voiceflow.chat._shadowRoot;
+      const shadowButtons = shadowRoot.querySelectorAll('button');
+      console.log(`📋 Found ${shadowButtons.length} buttons in shadow DOM`);
+      
+      // Look for the voice/call button using the proven selector
+      const callButton = Array.from(shadowButtons).find(btn => 
+        btn.textContent.includes('call') || 
+        btn.textContent.includes('Call') ||
+        btn.className.includes('vfrc-button')
+      );
+      
+      if (callButton) {
+        console.log('🎯 Found call button in shadow DOM:', callButton.textContent);
+        callButton.click();
+        console.log('✅ Successfully triggered voice chat via face click!');
+        return;
+      } else {
+        console.log('❌ Call button not found in shadow DOM');
+      }
+    }
+    
+    // Fallback: Open chat first, then try shadow DOM
+    console.log('🔄 Fallback: Opening chat first...');
+    window.voiceflow.chat.open();
+    
     setTimeout(() => {
-      // Re-inspect DOM before retrying
-      console.log('🔄 RE-INSPECTING DOM AFTER DELAY:');
-      const allButtons = document.querySelectorAll('button');
-      console.log('📋 Buttons after delay:', allButtons.length);
-      
-      allButtons.forEach((button, index) => {
-        if (button.textContent.toLowerCase().includes('voice') || 
-            button.textContent.toLowerCase().includes('call') ||
-            button.textContent.toLowerCase().includes('start')) {
-          console.log(`🎯 Potential voice button ${index}:`, {
-            text: button.textContent.trim(),
-            classes: button.className,
-            visible: button.offsetParent !== null,
-            clickable: !button.disabled
-          });
+      if (window.voiceflow.chat._shadowRoot) {
+        const shadowRoot = window.voiceflow.chat._shadowRoot;
+        const callBtn = shadowRoot.querySelector('button');
+        if (callBtn && callBtn.textContent.includes('call')) {
+          callBtn.click();
+          console.log('✅ Voice activated via fallback method');
         }
-      });
-      
-      findAndClickVoiceButton() || findVoiceButtonByText();
-    }, 1000);
+      }
+    }, 500);
+    
+  } catch (error) {
+    console.error('❌ Error accessing VoiceFlow shadow DOM:', error);
+    
+    // Final fallback: Try the interact method
+    try {
+      window.voiceflow.chat.interact({ type: 'voice' });
+      console.log('🎤 Attempted voice activation via interact method');
+    } catch (e) {
+      console.log('❌ All voice activation methods failed');
+    }
   }
-  
-  // Manual inspection trigger (for debugging)
-  window.inspectVoiceFlow = () => {
-    console.log('🔍 MANUAL DOM INSPECTION TRIGGERED:');
-    const allElements = document.querySelectorAll('*');
-    const voiceFlowElements = Array.from(allElements).filter(el => 
-      el.className.includes('voiceflow') || el.id.includes('voiceflow')
-    );
-    console.log('VoiceFlow elements:', voiceFlowElements);
-    
-    const iframes = document.querySelectorAll('iframe');
-    console.log('All iframes:', iframes);
-    
-    return { voiceFlowElements, iframes };
-  };
+};
+
+// Add this debugging helper
+window.inspectVoiceFlow = () => {
+  console.log('🔍 MANUAL DOM INSPECTION TRIGGERED:');
+  if (window.voiceflow && window.voiceflow.chat && window.voiceflow.chat._shadowRoot) {
+    const shadowRoot = window.voiceflow.chat._shadowRoot;
+    const shadowButtons = shadowRoot.querySelectorAll('button');
+    console.log('Shadow DOM buttons:', shadowButtons);
+    shadowButtons.forEach((btn, i) => {
+      console.log(`Button ${i}:`, btn.textContent, btn.className);
+    });
+  }
 };
 
   const handleAreaEnter = (area) => {
