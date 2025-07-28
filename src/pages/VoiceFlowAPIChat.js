@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, no-use-before-define */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, Square, Volume2, Send, MessageSquare } from 'lucide-react';
 import voiceFlowAPI from '../services/voiceflow';
