@@ -82,21 +82,114 @@ function ChatPage() {
     })(document, 'script');
   }, []);
 
-  // Hide VoiceFlow widget but keep it functional
+  // Hide VoiceFlow widget completely while preserving functionality
   useEffect(() => {
     if (isVoiceFlowLoaded) {
-      const style = document.createElement('style');
-      style.textContent = `
-        .voiceflow-chat { 
-          display: none !important; 
-          visibility: hidden !important;
-        }
-        [class*="voiceflow"]:not(#voiceflow-container) { 
-          display: none !important; 
-        }
-      `;
-      document.head.appendChild(style);
-      console.log('🙈 VoiceFlow widget hidden');
+      // Wait a moment for widget to fully render
+      setTimeout(() => {
+        const style = document.createElement('style');
+        style.id = 'voiceflow-hiding-styles';
+        style.textContent = `
+          /* COMPREHENSIVE VOICEFLOW WIDGET HIDING */
+          /* Hide main widget containers */
+          iframe[src*="voiceflow"],
+          div[data-voiceflow],
+          div[class*="voiceflow"],
+          div[id*="voiceflow"],
+          .vf-chat,
+          .vf-widget,
+          .vf-launcher,
+          .vf-chat-widget,
+          .vf-chat-container,
+          .vf-floating-chat,
+          #voiceflow-chat,
+          #vf-chat-widget,
+          [class*="VoiceflowWebChat"],
+          [id*="VoiceflowWebChat"],
+          
+          /* Hide by z-index patterns */
+          div[style*="z-index: 2147483647"],
+          div[style*="z-index: 2147483646"],
+          div[style*="z-index: 999999"],
+          
+          /* Hide floating/fixed positioned elements */
+          div[style*="position: fixed"][style*="bottom"],
+          div[style*="position: fixed"][style*="right"],
+          
+          /* VoiceFlow specific selectors */
+          .voiceflow-chat,
+          [data-widget="voiceflow"],
+          [data-testid*="voiceflow"] {
+            /* Keep in DOM but make completely invisible */
+            position: absolute !important;
+            left: -9999px !important;
+            top: -9999px !important;
+            width: 1px !important;
+            height: 1px !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -999999 !important;
+            visibility: hidden !important;
+            overflow: hidden !important;
+            /* DO NOT use display: none - breaks audio/voice APIs */
+          }
+          
+          /* Exception: Keep our container visible */
+          #voiceflow-container {
+            display: block !important;
+            position: static !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+          }
+          
+          /* Ensure audio elements remain functional */
+          iframe[src*="voiceflow"] audio,
+          div[data-voiceflow] audio,
+          .vf-chat audio,
+          .vf-widget audio,
+          [class*="voiceflow"] audio {
+            position: absolute !important;
+            left: -9998px !important;
+            top: -9998px !important;
+            width: 1px !important;
+            height: 1px !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            /* Keep audio functional - no display: none */
+            pointer-events: none !important;
+          }
+        `;
+        
+        document.head.appendChild(style);
+        console.log('🙈 VoiceFlow widget hidden completely (functionality preserved)');
+        
+        // Additional aggressive hiding after delay
+        setTimeout(() => {
+          // Find any remaining visible VoiceFlow elements
+          const allElements = document.querySelectorAll('*');
+          Array.from(allElements).forEach(el => {
+            const classes = el.className?.toString() || '';
+            const id = el.id || '';
+            
+            if ((classes.includes('voiceflow') || id.includes('voiceflow')) && 
+                el.id !== 'voiceflow-container') {
+              // Apply hiding styles directly
+              el.style.position = 'absolute';
+              el.style.left = '-9999px';
+              el.style.top = '-9999px';
+              el.style.width = '1px';
+              el.style.height = '1px';
+              el.style.opacity = '0';
+              el.style.visibility = 'hidden';
+              el.style.pointerEvents = 'none';
+              el.style.zIndex = '-999999';
+            }
+          });
+          
+          console.log('🔍 Applied additional hiding to any remaining VoiceFlow elements');
+        }, 2000);
+        
+      }, 1000);
     }
   }, [isVoiceFlowLoaded]);
 
