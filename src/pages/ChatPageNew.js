@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart } from 'lucide-react';
@@ -6,7 +5,7 @@ import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart } from 'lucide-
 function ChatPage() {
   const [hoveredArea, setHoveredArea] = useState(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
-  const [chatMode, setChatMode] = useState('voice'); // 'voice' or 'text'
+  const [chatMode, setChatMode] = useState('voice');
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [isVoiceFlowLoaded, setIsVoiceFlowLoaded] = useState(false);
   const imageRef = useRef(null);
@@ -16,7 +15,6 @@ function ChatPage() {
   useEffect(() => {
     const updateImageSize = () => {
       if (imageRef.current) {
-        // Small delay to ensure image is fully rendered
         setTimeout(() => {
           const rect = imageRef.current.getBoundingClientRect();
           setImageSize({ width: rect.width, height: rect.height });
@@ -30,11 +28,11 @@ function ChatPage() {
     return () => window.removeEventListener('resize', updateImageSize);
   }, []);
 
-  // Load VoiceFlow widget ONCE - using PROVEN working script from test
+  // Load VoiceFlow widget ONCE
   useEffect(() => {
-    // Ultimate protection against double loading
+    // Protection against double loading
     if (window.voiceflowChatLoaded) {
-      console.log('✅ VoiceFlow already loaded (global flag protection)');
+      console.log('✅ VoiceFlow already loaded');
       setIsVoiceFlowLoaded(true);
       return;
     }
@@ -47,14 +45,14 @@ function ChatPage() {
       return;
     }
 
-    console.log('🔧 Loading VoiceFlow widget with PROVEN working script...');
-    window.voiceflowChatLoaded = true; // Set flag immediately
+    console.log('🔧 Loading VoiceFlow widget...');
+    window.voiceflowChatLoaded = true;
     
-    // OFFICIAL VOICEFLOW SCRIPT - Exact same as working test page
+    // Official VoiceFlow script
     (function(d, t) {
         var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
         v.onload = function() {
-          console.log('🔧 Official VoiceFlow script loaded, initializing...');
+          console.log('🔧 VoiceFlow script loaded, initializing...');
           
           window.voiceflow.chat.load({
             verify: { projectID: '68829d0cd2b91792a19c12a1' },
@@ -66,30 +64,27 @@ function ChatPage() {
           });
           
           setIsVoiceFlowLoaded(true);
-          console.log('✅ VoiceFlow widget initialized successfully for face navigation');
+          console.log('✅ VoiceFlow widget initialized');
           
-          // Additional debugging
+          // Add DOM inspection after initialization
           setTimeout(() => {
-            console.log('🔍 VoiceFlow ready for face-based interaction');
-          }, 2000);
+            inspectVoiceFlowDOM();
+          }, 3000);
         }
         v.onerror = function() {
-          console.error('❌ Failed to load official VoiceFlow script');
-          window.voiceflowChatLoaded = false; // Reset on error
+          console.error('❌ Failed to load VoiceFlow script');
+          window.voiceflowChatLoaded = false;
           setIsVoiceFlowLoaded(false);
         }
         v.src = "https://cdn.voiceflow.com/widget-next/bundle.mjs"; 
         v.type = "text/javascript"; 
         s.parentNode.insertBefore(v, s);
     })(document, 'script');
-    
-    // No cleanup - let VoiceFlow persist
-  }, []); // Empty dependency array - run once only
+  }, []);
 
-// Hide VoiceFlow widget once face navigation is working
+  // Hide VoiceFlow widget but keep it functional
   useEffect(() => {
     if (isVoiceFlowLoaded) {
-      // Add CSS to hide the widget but keep it functional
       const style = document.createElement('style');
       style.textContent = `
         .voiceflow-chat { 
@@ -101,12 +96,50 @@ function ChatPage() {
         }
       `;
       document.head.appendChild(style);
-      console.log('🙈 VoiceFlow widget hidden - pure face navigation active');
+      console.log('🙈 VoiceFlow widget hidden');
     }
   }, [isVoiceFlowLoaded]);
 
+  // Function to inspect VoiceFlow DOM structure
+  const inspectVoiceFlowDOM = () => {
+    console.log('🔍 INSPECTING VOICEFLOW DOM STRUCTURE:');
+    
+    // Check for shadow DOM
+    if (window.voiceflow && window.voiceflow.chat && window.voiceflow.chat._shadowRoot) {
+      const shadowRoot = window.voiceflow.chat._shadowRoot;
+      const shadowButtons = shadowRoot.querySelectorAll('button');
+      console.log(`📋 Found ${shadowButtons.length} buttons in shadow DOM`);
+      
+      shadowButtons.forEach((btn, i) => {
+        console.log(`Shadow Button ${i}:`, {
+          text: btn.textContent.trim(),
+          className: btn.className,
+          attributes: Array.from(btn.attributes).map(attr => `${attr.name}="${attr.value}"`),
+          visible: btn.offsetParent !== null
+        });
+      });
+    }
+    
+    // Check regular DOM
+    const allButtons = document.querySelectorAll('button');
+    console.log(`📋 Found ${allButtons.length} buttons in regular DOM`);
+    
+    allButtons.forEach((btn, i) => {
+      const text = btn.textContent.trim().toLowerCase();
+      if (text.includes('voice') || text.includes('call') || text.includes('start')) {
+        console.log(`Potential Voice Button ${i}:`, {
+          text: btn.textContent.trim(),
+          className: btn.className,
+          ariaLabel: btn.getAttribute('aria-label'),
+          visible: btn.offsetParent !== null
+        });
+      }
+    });
+  };
+
+  // Handle face click - try to activate voice
   const handleFaceClick = () => {
-    console.log('👆 Face clicked! Attempting Shadow DOM voice activation...');
+    console.log('👆 Face clicked! Attempting voice activation...');
     
     if (!isVoiceFlowLoaded) {
       console.log('⏳ VoiceFlow still loading...');
@@ -114,142 +147,64 @@ function ChatPage() {
     }
 
     try {
-      // PROVEN WORKING METHOD: Access Shadow DOM directly
+      // Method 1: Try Shadow DOM access
       if (window.voiceflow && window.voiceflow.chat && window.voiceflow.chat._shadowRoot) {
         console.log('🎯 Accessing VoiceFlow Shadow DOM...');
-
+        
         const shadowRoot = window.voiceflow.chat._shadowRoot;
         const shadowButtons = shadowRoot.querySelectorAll('button');
         console.log(`📋 Found ${shadowButtons.length} buttons in shadow DOM`);
-
-        // Look for the voice/call button using the proven selector
-        const callButton = Array.from(shadowButtons).find(btn =>
-          btn.textContent.includes('call') ||
-          btn.textContent.includes('Call') ||
-          btn.className.includes('vfrc-button')
-        );
-
-          const title = button.getAttribute('title');
-          
-          console.log(`Button ${index}:`, {
-            text,
-            ariaLabel,
-            classes,
-            title,
-            visible: button.offsetParent !== null,
-            element: button
-          });
+        
+        // Look for voice/call button
+        const callButton = Array.from(shadowButtons).find(btn => {
+          const text = btn.textContent.toLowerCase();
+          return text.includes('call') || text.includes('voice') || text.includes('start');
         });
         
-        // Look specifically for voice/call related buttons
-        const voiceButtons = Array.from(allButtons).filter(button => {
-          const text = button.textContent.toLowerCase();
-          const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
-          const classes = button.className.toLowerCase();
-          const title = (button.getAttribute('title') || '').toLowerCase();
-          
-          return text.includes('voice') || text.includes('call') || text.includes('microphone') ||
-                 ariaLabel.includes('voice') || ariaLabel.includes('call') || ariaLabel.includes('microphone') ||
-                 classes.includes('voice') || classes.includes('call') || classes.includes('microphone') ||
-                 title.includes('voice') || title.includes('call') || title.includes('microphone');
-        });
-        
-        console.log('🎤 Voice-related buttons found:', voiceButtons);
-        
-        // Also check for SVG icons that might indicate voice
-        const svgElements = document.querySelectorAll('svg');
-        console.log('📋 SVG elements found:', svgElements.length);
-        
-        svgElements.forEach((svg, index) => {
-          const classes = svg.className.baseVal || svg.className;
-          const parent = svg.closest('button');
-          if (parent) {
-            console.log(`SVG ${index} in button:`, {
-              svgClasses: classes,
-              buttonText: parent.textContent.trim(),
-              buttonClasses: parent.className
-            });
-          }
-        });
-        
-      }, 3000); // Wait 3 seconds for widget to fully render
-    }
-  }, [isVoiceFlowLoaded]);
-
- const handleFaceClick = () => {
-  console.log('👆 Face clicked! Attempting Shadow DOM voice activation...');
-  
-  if (!isVoiceFlowLoaded) {
-    console.log('⏳ VoiceFlow still loading...');
-    return;
-  }
-
-  try {
-    // PROVEN WORKING METHOD: Access Shadow DOM directly
-    if (window.voiceflow && window.voiceflow.chat && window.voiceflow.chat._shadowRoot) {
-      console.log('🎯 Accessing VoiceFlow Shadow DOM...');
-      
-      const shadowRoot = window.voiceflow.chat._shadowRoot;
-      const shadowButtons = shadowRoot.querySelectorAll('button');
-      console.log(`📋 Found ${shadowButtons.length} buttons in shadow DOM`);
-      
-      // Look for the voice/call button using the proven selector
-      const callButton = Array.from(shadowButtons).find(btn => 
-        btn.textContent.includes('call') || 
-        btn.textContent.includes('Call') ||
-        btn.className.includes('vfrc-button')
-      );
-      
-      if (callButton) {
-        console.log('🎯 Found call button in shadow DOM:', callButton.textContent);
-        callButton.click();
-        console.log('✅ Successfully triggered voice chat via face click!');
-        return;
-      } else {
-        console.log('❌ Call button not found in shadow DOM');
-      }
-    }
-    
-    // Fallback: Open chat first, then try shadow DOM
-    console.log('🔄 Fallback: Opening chat first...');
-    window.voiceflow.chat.open();
-    
-    setTimeout(() => {
-      if (window.voiceflow.chat._shadowRoot) {
-        const shadowRoot = window.voiceflow.chat._shadowRoot;
-        const callBtn = shadowRoot.querySelector('button');
-        if (callBtn && callBtn.textContent.includes('call')) {
-          callBtn.click();
-          console.log('✅ Voice activated via fallback method');
+        if (callButton) {
+          console.log('🎯 Found voice button:', callButton.textContent);
+          callButton.click();
+          console.log('✅ Voice activated via shadow DOM!');
+          return;
         }
       }
-    }, 500);
-    
-  } catch (error) {
-    console.error('❌ Error accessing VoiceFlow shadow DOM:', error);
-    
-    // Final fallback: Try the interact method
-    try {
-      window.voiceflow.chat.interact({ type: 'voice' });
-      console.log('🎤 Attempted voice activation via interact method');
-    } catch (e) {
-      console.log('❌ All voice activation methods failed');
+      
+      // Method 2: Try opening chat first
+      console.log('🔄 Opening VoiceFlow chat...');
+      window.voiceflow.chat.open();
+      
+      // Then try to find voice button after delay
+      setTimeout(() => {
+        if (window.voiceflow.chat._shadowRoot) {
+          const shadowRoot = window.voiceflow.chat._shadowRoot;
+          const callBtn = shadowRoot.querySelector('button');
+          if (callBtn && callBtn.textContent.toLowerCase().includes('call')) {
+            callBtn.click();
+            console.log('✅ Voice activated via delayed method');
+          }
+        }
+      }, 1000);
+      
+    } catch (error) {
+      console.error('❌ Error accessing VoiceFlow:', error);
+      
+      // Fallback: Try API method
+      try {
+        if (window.voiceflow && window.voiceflow.chat.interact) {
+          window.voiceflow.chat.interact({ type: 'voice' });
+          console.log('🎤 Attempted voice via API');
+        }
+      } catch (e) {
+        console.log('❌ All voice activation methods failed');
+      }
     }
-  }
-};
+  };
 
-// Add this debugging helper
-window.inspectVoiceFlow = () => {
-  console.log('🔍 MANUAL DOM INSPECTION TRIGGERED:');
-  if (window.voiceflow && window.voiceflow.chat && window.voiceflow.chat._shadowRoot) {
-    const shadowRoot = window.voiceflow.chat._shadowRoot;
-    const shadowButtons = shadowRoot.querySelectorAll('button');
-    console.log('Shadow DOM buttons:', shadowButtons);
-    shadowButtons.forEach((btn, i) => {
-      console.log(`Button ${i}:`, btn.textContent, btn.className);
-    });
-  }
-};
+  // Manual inspection helper
+  window.inspectVoiceFlow = () => {
+    inspectVoiceFlowDOM();
+    return window.voiceflow;
+  };
 
   const handleAreaEnter = (area) => {
     setHoveredArea(area);
@@ -259,36 +214,10 @@ window.inspectVoiceFlow = () => {
     setHoveredArea(null);
   };
 
-  // Calculate responsive coordinates based on current image size
-  const getCoordinates = (topPercent, leftPercent, widthPercent, heightPercent) => {
-    if (!imageRef.current) return {};
-    
-    // Get element references for positioning calculation
-    const image = imageRef.current;
-    const gridContainer = image.parentElement;
-    const inlineBlockContainer = gridContainer.parentElement;
-    const centeringWrapper = inlineBlockContainer.parentElement;
-    
-    // Calculate position relative to the centering wrapper
-    const imageRect = image.getBoundingClientRect();
-    const centeringRect = centeringWrapper.getBoundingClientRect();
-    
-    // Calculate offset of image within the centering wrapper
-    const offsetTop = imageRect.top - centeringRect.top;
-    const offsetLeft = imageRect.left - centeringRect.left;
-    
-    return {
-      top: offsetTop + (topPercent / 100) * imageRect.height,
-      left: offsetLeft + (leftPercent / 100) * imageRect.width,
-      width: (widthPercent / 100) * imageRect.width,
-      height: (heightPercent / 100) * imageRect.height,
-    };
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex flex-col items-center justify-center p-4">
       
-      {/* Back Button - Minimal and elegant */}
+      {/* Back Button */}
       <button
         onClick={() => navigate('/')}
         className="absolute top-6 left-6 p-3 bg-white bg-opacity-80 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 text-gray-600 hover:text-gray-800"
@@ -296,55 +225,44 @@ window.inspectVoiceFlow = () => {
         <ArrowLeft className="w-5 h-5" />
       </button>
 
-      {/* Chat Controls - Top right corner */}
+      {/* Chat Controls */}
       <div className="absolute top-6 right-6 flex space-x-3">
-        {/* Voice Toggle */}
         <button
           onClick={() => setIsVoiceEnabled(!isVoiceEnabled)}
           className={`p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 ${
-            isVoiceEnabled 
-              ? 'bg-green-500 text-white' 
-              : 'bg-red-500 text-white'
+            isVoiceEnabled ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
           }`}
         >
           {isVoiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
         </button>
 
-        {/* Text Mode Toggle */}
         <button
           onClick={() => setChatMode(chatMode === 'voice' ? 'text' : 'voice')}
           className={`p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 ${
-            chatMode === 'text' 
-              ? 'bg-blue-500 text-white' 
-              : 'bg-white bg-opacity-80 text-gray-600'
+            chatMode === 'text' ? 'bg-blue-500 text-white' : 'bg-white bg-opacity-80 text-gray-600'
           }`}
         >
           <MessageSquare className="w-5 h-5" />
         </button>
 
-        {/* Email Chat */}
         <button
-          onClick={() => {/* Email functionality will go here */}}
+          onClick={() => {/* Email functionality */}}
           className="p-3 bg-white bg-opacity-80 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 text-gray-600 hover:text-gray-800"
         >
           <Mail className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Main Clementine Face - 90% of screen focus */}
+      {/* Main Clementine Face */}
       <div className="relative max-w-sm mx-auto mb-8">
-        
-        {/* IMAGE CONTAINER - Same structure as home page */}
         <div className="relative" style={{ display: 'inline-block', margin: '0 auto' }}>
-          
-          {/* IMAGE STACK - All images in same grid cell */}
           <div style={{ 
             display: 'grid',
             gridTemplateColumns: '1fr',
             gridTemplateRows: '1fr'
           }}>
             
-            {/* Base Image - Always visible */}
+            {/* Base Image */}
             <img 
               ref={imageRef}
               src="/images/clementine-base.jpg" 
@@ -363,16 +281,9 @@ window.inspectVoiceFlow = () => {
                 }
               }}
             />
-            
-            {/* Speaking Animation - Shows when Clementine is talking */}
-            {/* REMOVED: Fake animations that interfere with real VoiceFlow audio */}
-            
-            {/* Listening Animation - Shows when listening to user */}
-            {/* REMOVED: Fake animations that interfere with real VoiceFlow audio */}
-            
           </div>
 
-          {/* CONVERSATION TRIGGER ZONE - Covers entire face for voice interaction */}
+          {/* Conversation Trigger Zone */}
           {imageSize.width > 0 && (
             <div
               style={{
@@ -400,16 +311,20 @@ window.inspectVoiceFlow = () => {
               )}
             </div>
           )}
-          
         </div>
-
       </div>
 
-      {/* Status Indicators */}
-      {/* REMOVED: Fake status indicators that interfere with real VoiceFlow audio */}
+      {/* Status */}
       <div className="text-center mb-4">
         <div className="text-xs text-gray-500">
-          Click Clementine's face to start - VoiceFlow handles all audio
+          Click Clementine's face to start voice conversation
+        </div>
+        <div className="mt-2 text-xs">
+          {isVoiceFlowLoaded ? (
+            <span className="text-green-600">✅ VoiceFlow Ready</span>
+          ) : (
+            <span className="text-orange-600">⏳ Loading VoiceFlow...</span>
+          )}
         </div>
       </div>
 
@@ -422,7 +337,7 @@ window.inspectVoiceFlow = () => {
           <div className="text-sm text-gray-500 space-y-1">
             <p className="font-medium text-purple-600">Voice Mode Active 🎤</p>
             <p>Click anywhere on Clementine's face to start talking</p>
-            <p className="text-xs">Just like a phone conversation - natural and flowing</p>
+            <p className="text-xs">Pure voice conversation with VoiceFlow</p>
           </div>
         ) : (
           <div className="text-sm text-gray-500 space-y-1">
@@ -430,18 +345,9 @@ window.inspectVoiceFlow = () => {
             <p>Text chat interface will appear here</p>
           </div>
         )}
-        
-        {/* VoiceFlow Status */}
-        <div className="mt-2 text-xs text-gray-400">
-          {isVoiceFlowLoaded ? (
-            <span className="text-green-600">✅ VoiceFlow Ready</span>
-          ) : (
-            <span className="text-orange-600">⏳ Loading VoiceFlow...</span>
-          )}
-        </div>
       </div>
 
-      {/* Future Text Chat Area - Only shown in text mode */}
+      {/* Text Chat Area */}
       {chatMode === 'text' && (
         <div className="mt-8 w-full max-w-md bg-white rounded-2xl shadow-xl p-4">
           <div className="text-center text-gray-500 py-8">
@@ -452,9 +358,9 @@ window.inspectVoiceFlow = () => {
         </div>
       )}
 
-      {/* VoiceFlow Integration Zone - Hidden container for the invisible widget */}
+      {/* Hidden VoiceFlow Container */}
       <div id="voiceflow-container" style={{ display: 'none' }}>
-        {/* VoiceFlow widget will be loaded here invisibly */}
+        {/* VoiceFlow widget loads here */}
       </div>
 
     </div>
