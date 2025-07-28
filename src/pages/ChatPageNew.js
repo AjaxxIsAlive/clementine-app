@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart } from 'lucide-react';
@@ -7,8 +8,6 @@ function ChatPage() {
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [chatMode, setChatMode] = useState('voice'); // 'voice' or 'text'
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [isVoiceFlowLoaded, setIsVoiceFlowLoaded] = useState(false);
   const imageRef = useRef(null);
   const navigate = useNavigate();
