@@ -86,27 +86,49 @@ function ChatPage() {
     // No cleanup - let VoiceFlow persist
   }, []); // Empty dependency array - run once only
 
-  // DOM inspection and widget visibility for debugging
+// Hide VoiceFlow widget once face navigation is working
   useEffect(() => {
-    console.log('🔍 Widget left visible for audio debugging');
-    
-    // Add DOM inspection after widget loads
     if (isVoiceFlowLoaded) {
-      setTimeout(() => {
-        console.log('🔍 INSPECTING VOICEFLOW WIDGET DOM STRUCTURE:');
-        
-        // Find all VoiceFlow elements
-        const voiceflowElements = document.querySelectorAll('[class*="voiceflow"], [id*="voiceflow"], iframe[src*="voiceflow"]');
-        console.log('📋 VoiceFlow elements found:', voiceflowElements.length);
-        
-        // Log all buttons in the widget
-        const allButtons = document.querySelectorAll('button');
-        console.log('📋 All buttons on page:', allButtons.length);
-        
-        allButtons.forEach((button, index) => {
-          const text = button.textContent.trim();
-          const ariaLabel = button.getAttribute('aria-label');
-          const classes = button.className;
+      // Add CSS to hide the widget but keep it functional
+      const style = document.createElement('style');
+      style.textContent = `
+        .voiceflow-chat { 
+          display: none !important; 
+          visibility: hidden !important;
+        }
+        [class*="voiceflow"]:not(#voiceflow-container) { 
+          display: none !important; 
+        }
+      `;
+      document.head.appendChild(style);
+      console.log('🙈 VoiceFlow widget hidden - pure face navigation active');
+    }
+  }, [isVoiceFlowLoaded]);
+
+  const handleFaceClick = () => {
+    console.log('👆 Face clicked! Attempting Shadow DOM voice activation...');
+    
+    if (!isVoiceFlowLoaded) {
+      console.log('⏳ VoiceFlow still loading...');
+      return;
+    }
+
+    try {
+      // PROVEN WORKING METHOD: Access Shadow DOM directly
+      if (window.voiceflow && window.voiceflow.chat && window.voiceflow.chat._shadowRoot) {
+        console.log('🎯 Accessing VoiceFlow Shadow DOM...');
+
+        const shadowRoot = window.voiceflow.chat._shadowRoot;
+        const shadowButtons = shadowRoot.querySelectorAll('button');
+        console.log(`📋 Found ${shadowButtons.length} buttons in shadow DOM`);
+
+        // Look for the voice/call button using the proven selector
+        const callButton = Array.from(shadowButtons).find(btn =>
+          btn.textContent.includes('call') ||
+          btn.textContent.includes('Call') ||
+          btn.className.includes('vfrc-button')
+        );
+
           const title = button.getAttribute('title');
           
           console.log(`Button ${index}:`, {
