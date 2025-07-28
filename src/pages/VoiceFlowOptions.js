@@ -24,6 +24,7 @@ function VoiceFlowOptions() {
       pros: ['✅ Full UI control', '✅ VoiceFlow voice tech', '✅ Brand consistent'],
       cons: ['⚠️ More complex setup', '⚠️ SDK limitations'],
       route: '/custom-chat',
+      demoRoute: '/custom-demo',
       icon: <Palette className="w-8 h-8" />,
       color: 'from-purple-400 to-purple-600',
       badge: 'RECOMMENDED'
@@ -127,14 +128,26 @@ function VoiceFlowOptions() {
                 </ul>
               </div>
 
-              {/* Button */}
-              <button
-                onClick={() => navigate(option.route)}
-                className={`w-full bg-gradient-to-r ${option.color} text-white font-semibold py-3 px-6 rounded-xl hover:shadow-lg transition-all duration-200 flex items-center justify-center space-x-2`}
-              >
-                <span>Try This Option</span>
-                <ArrowRight className="w-5 h-5" />
-              </button>
+              {/* Buttons */}
+              <div className="space-y-3">
+                <button
+                  onClick={() => navigate(option.route)}
+                  className={`w-full bg-gradient-to-r ${option.color} text-white font-semibold py-3 px-6 rounded-xl hover:shadow-lg transition-all duration-200 flex items-center justify-center space-x-2`}
+                >
+                  <span>Try This Option</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+                
+                {/* Demo button for Custom UI option */}
+                {option.demoRoute && (
+                  <button
+                    onClick={() => navigate(option.demoRoute)}
+                    className="w-full bg-white border-2 border-purple-400 text-purple-600 font-semibold py-2 px-6 rounded-xl hover:bg-purple-50 transition-all duration-200 flex items-center justify-center space-x-2"
+                  >
+                    <span>👀 See Working Demo</span>
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

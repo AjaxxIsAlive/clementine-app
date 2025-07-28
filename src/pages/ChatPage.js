@@ -1,759 +1,619 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Send, Volume2, VolumeX, RotateCcw, Mic, Square } from 'lucide-react';
-import voiceFlowAPI from '../services/voiceflow';
-import speechService from '../services/speechService';
-// Force rebuild timestamp: ${new Date().toISOString()}
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart } from 'lucide-react';
 
 function ChatPage() {
-  const [messages, setMessages] = useState([]);
-  const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [hoveredArea, setHoveredArea] = useState(null);
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [chatMode, setChatMode] = useState('voice'); // 'voice' or 'text'
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
-  const [hasStartedConversation, setHasStartedConversation] = useState(false);
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
-  const audioRef = useRef(null);
-  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
-  const [error, setError] = useState('');
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isVoiceFlowLoaded, setIsVoiceFlowLoaded] = useState(false);
+  const [conversationStarted, setConversationStarted] = useState(false);
+  const imageRef = useRef(null);
+  const navigate = useNavigate();
 
-  // Mobile permission states
-  const [permissionStatus, setPermissionStatus] = useState({
-    microphone: 'unknown',
-    speech: 'unknown'
-  });
-  const [showPermissionRequest, setShowPermissionRequest] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  // Initialize VoiceFlow with proper async loading and error handling
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (typeof window !== 'undefined') {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.voiceflow.com/widget-next/bundle.mjs';
+      script.type = 'module';
+      script.async = true;
+      
+      script.onload = () => {
+        const initializeVoiceFlow = async () => {
+          try {
+            // Wait for VoiceFlow to be fully available
+            let attempts = 0;
+            while ((!window.voiceflow || !window.voiceflow.chat) && attempts < 50) {
+              console.log('⏳ Waiting for VoiceFlow to be available...');
+              await new Promise(resolve => setTimeout(resolve, 100));
+              attempts++;
+            }
 
-  const stopPlayback = useCallback(async () => {
-    console.log('🛑 stopPlayback called - clearing all audio states');
-    try {
-      // Stop VoiceFlow audio
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
+            if (!window.voiceflow || !window.voiceflow.chat) {
+              throw new Error('VoiceFlow failed to load after 5 seconds');
+            }
+
+            const config = {
+              verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
+              url: 'https://general-runtime.voiceflow.com',
+              versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
+              
+              assistant: {
+                title: 'Clementine',
+                description: 'Your AI Relationship Advisor',
+                avatar: {
+                  image: '/images/clementine-face.jpg',
+                  name: 'Clementine'
+                },
+                color: '#ec4899',
+                persistence: 'memory', // Reset on page refresh for fresh sessions
+                type: 'chat',
+                renderMode: 'popover',
+                voice: {
+                  enabled: true,
+                  autoplay: true,
+                  language: 'en-US',
+                  wakeWord: false,
+                  startListening: true,
+                },
+              },
+              
+              // Hide launcher for custom face interface
+              launcher: { 
+                hidden: true 
+              },
+              
+              // Fresh session each time
+              session: {
+                userID: 'clementine-face-user-' + Date.now(),
+              },
+              
+              autostart: false,
+            };
+
+            console.log('🔧 Loading VoiceFlow with simplified config');
+            
+            // Load VoiceFlow with basic configuration first
+            await window.voiceflow.chat.load(config);
+            
+            console.log('✅ VoiceFlow basic load complete');
+            
+            // Add event listeners for voice activity tracking
+            if (window.voiceflow.chat.listen) {
+              window.voiceflow.chat.listen('voice.start', () => {
+                console.log('🎤 Voice recording started');
+                setIsListening(true);
+                setIsSpeaking(false);
+              });
+              
+              window.voiceflow.chat.listen('voice.end', () => {
+                console.log('🎤 Voice recording ended');
+                setIsListening(false);
+              });
+              
+              window.voiceflow.chat.listen('audio.start', () => {
+                console.log('🔊 Audio playback started');
+                setIsSpeaking(true);
+                setIsListening(false);
+              });
+              
+              window.voiceflow.chat.listen('audio.end', () => {
+                console.log('🔊 Audio playback ended');
+                setIsSpeaking(false);
+              });
+              
+              window.voiceflow.chat.listen('response', (response) => {
+                console.log('💬 VoiceFlow response received:', response);
+              });
+            }
+            
+            // Wait for initialization
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            setIsVoiceFlowLoaded(true);
+            console.log('✅ VoiceFlow widget loaded and ready for voice interaction');
+            
+          } catch (error) {
+            console.error('❌ Error initializing VoiceFlow:', error);
+            setIsVoiceFlowLoaded(false);
+          }
+        };
+
+        // Start initialization
+        initializeVoiceFlow();
+      };
       
-      // Stop speech synthesis
-      await speechService.stopPlayback();
+      script.onerror = () => {
+        console.error('❌ Failed to load VoiceFlow script');
+        setIsVoiceFlowLoaded(false);
+      };
       
-      // Ensure all audio-related states are cleared
-      setIsSpeaking(false);
-      setIsProcessingVoice(false);
-    } catch (error) {
-      console.error('Error stopping playback:', error);
-      setIsSpeaking(false);
-      setIsProcessingVoice(false);
+      document.head.appendChild(script);
+      
+      return () => {
+        if (document.head.contains(script)) {
+          document.head.removeChild(script);
+        }
+      };
     }
+  }, []);  // Hide VoiceFlow widget UI elements
+  useEffect(() => {
+    const hideVoiceFlowUI = () => {
+      // Hide all VoiceFlow UI elements to keep only the face interface
+      const style = document.createElement('style');
+      style.textContent = `
+        /* AGGRESSIVE VOICEFLOW HIDING - Completely hide all widget UI */
+        iframe[src*="voiceflow"],
+        div[data-voiceflow],
+        div[class*="voiceflow"],
+        div[id*="voiceflow"],
+        .vf-chat,
+        .vf-widget,
+        .vf-launcher,
+        .vf-chat-widget,
+        .vf-chat-container,
+        .vf-floating-chat,
+        #voiceflow-chat,
+        #vf-chat-widget,
+        [class*="VoiceflowWebChat"],
+        [id*="VoiceflowWebChat"],
+        div[style*="position: fixed"],
+        div[style*="z-index: 2147483647"],
+        div[style*="z-index: 2147483646"],
+        div[style*="bottom: 20px"],
+        div[style*="right: 20px"] {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          width: 0 !important;
+          height: 0 !important;
+          position: absolute !important;
+          left: -9999px !important;
+          top: -9999px !important;
+          pointer-events: none !important;
+          z-index: -1 !important;
+        }
+        
+        /* Hide any overlay or backdrop */
+        .vf-overlay,
+        .vf-backdrop,
+        div[role="dialog"],
+        div[aria-modal="true"] {
+          display: none !important;
+        }
+        
+        /* Ensure our face interface stays visible and clickable */
+        .face-container,
+        .face-container * {
+          display: block !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          pointer-events: auto !important;
+          z-index: 1000 !important;
+        }
+        
+        /* Ensure our face interface is always visible */
+        .clementine-face-interface {
+          z-index: 9999 !important;
+          position: relative !important;
+        }
+      `;
+      document.head.appendChild(style);
+      
+      return () => {
+        if (document.head.contains(style)) {
+          document.head.removeChild(style);
+        }
+      };
+    };
+
+    return hideVoiceFlowUI();
   }, []);
 
-  const handleSendMessage = useCallback(async (messageText) => {
-    if (!messageText.trim() || isLoading) return;
-
-    setError('');
-
-    const userMessage = {
-      id: Date.now(),
-      text: messageText,
-      isUser: true,
-      timestamp: new Date()
+  // Update image size when window resizes or image loads
+  useEffect(() => {
+    const updateImageSize = () => {
+      if (imageRef.current) {
+        // Small delay to ensure image is fully rendered
+        setTimeout(() => {
+          const rect = imageRef.current.getBoundingClientRect();
+          setImageSize({ width: rect.width, height: rect.height });
+        }, 50);
+      }
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    setIsLoading(true);
+    updateImageSize();
+    window.addEventListener('resize', updateImageSize);
+    
+    return () => window.removeEventListener('resize', updateImageSize);
+  }, []);
+
+  const requestMicrophonePermission = async () => {
+    try {
+      console.log('🎤 Requesting microphone permission...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('✅ Microphone permission granted');
+      
+      // Stop the stream since we just needed permission
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (error) {
+      console.error('❌ Microphone permission denied:', error);
+      return false;
+    }
+  };
+
+  const activateVoiceMode = async () => {
+    try {
+      console.log('🔊 Activating voice mode...');
+      
+      // Try to access VoiceFlow's internal voice methods
+      if (window.voiceflow && window.voiceflow.chat) {
+        // Send a launch interaction to start the conversation
+        if (window.voiceflow.chat.interact) {
+          window.voiceflow.chat.interact({
+            type: 'launch'
+          });
+          console.log('✅ Launch interaction sent');
+        }
+        
+        // Try alternative voice activation methods
+        if (window.voiceflow.chat.startListening) {
+          window.voiceflow.chat.startListening();
+          console.log('✅ startListening called');
+        }
+      }
+      
+      console.log('✅ Voice mode activation attempted');
+    } catch (error) {
+      console.error('⚠️ Voice mode activation error:', error);
+    }
+  };
+
+  const handleFaceClick = async () => {
+    console.log('👆 Face clicked! VoiceFlow loaded:', isVoiceFlowLoaded);
+    
+    if (!isVoiceFlowLoaded) {
+      console.log('⏳ VoiceFlow still loading, please wait...');
+      return;
+    }
+
+    // Check if VoiceFlow is actually available
+    if (!window.voiceflow || !window.voiceflow.chat) {
+      console.error('❌ VoiceFlow not available');
+      return;
+    }
 
     try {
-      const response = await voiceFlowAPI.interact(messageText);
-      
-      const assistantMessage = {
-        id: Date.now() + 1,
-        text: response.text || response,
-        isUser: false,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-
-      // Enhanced voice processing with error handling
-      if (isVoiceEnabled && response.audioUrl) {
-        setIsProcessingVoice(true);
-        try {
-          await playVoiceFlowAudio(response.audioUrl);
-        } catch (error) {
-          console.error('VoiceFlow audio failed:', error);
-          setError('Audio playback failed');
-          
-          // Fallback to browser TTS
-          if (speechService.synthesis) {
-            try {
-              setIsSpeaking(true);
-              await speechService.speak(response.text);
-              setIsSpeaking(false);
-            } catch (ttsError) {
-              console.error('TTS fallback failed:', ttsError);
-              setError('Voice synthesis unavailable');
-            }
-          }
-        } finally {
-          setIsProcessingVoice(false);
+      if (!conversationStarted) {
+        console.log('🎤 Starting voice conversation with Clementine...');
+        
+        // Request microphone permission first
+        const micPermission = await requestMicrophonePermission();
+        if (!micPermission) {
+          console.log('⚠️ Microphone permission required for voice chat');
+          // Continue anyway, user might grant permission later
         }
-      } else if (isVoiceEnabled && speechService.synthesis) {
-        setIsProcessingVoice(true);
-        try {
+        
+        // Start the conversation - use show() instead of open() for overlay mode
+        if (window.voiceflow.chat.show) {
+          window.voiceflow.chat.show();
+        } else {
+          window.voiceflow.chat.open();
+        }
+        setConversationStarted(true);
+        
+        console.log('✅ VoiceFlow conversation opened');
+        
+        // Wait a moment for the widget to initialize, then activate voice
+        setTimeout(async () => {
+          await activateVoiceMode();
+        }, 1500);
+        
+        // Visual feedback
+        setIsListening(true);
+        setTimeout(() => {
+          setIsListening(false);
           setIsSpeaking(true);
-          await speechService.speak(response.text);
-          setIsSpeaking(false);
-        } catch (error) {
-          console.error('TTS failed:', error);
-          setError('Voice synthesis failed');
-        } finally {
-          setIsProcessingVoice(false);
-        }
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setError('Connection failed');
-      const errorMessage = {
-        id: Date.now() + 1,
-        text: "I'm having trouble connecting right now. Please try again in a moment.",
-        isUser: false,
-        timestamp: new Date(),
-        isError: true
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading, isVoiceEnabled]);
-
-  useEffect(() => {
-    // Detect mobile and check permissions
-    const checkMobileAndPermissions = async () => {
-      const isMobileDevice = speechService.isMobile;
-      setIsMobile(isMobileDevice);
-      
-      // Check current permission status
-      const permissions = await speechService.checkPermissionStatus();
-      setPermissionStatus(permissions);
-      
-      // Show permission request on mobile if needed
-      if (isMobileDevice && permissions.microphone === 'unknown') {
-        setShowPermissionRequest(true);
-      }
-    };
-    
-    checkMobileAndPermissions();
-
-    // Set up speech service callbacks
-    speechService.onResult = (transcript) => {
-      console.log('🎯 ChatPage received speech result:', transcript);
-      console.log('🚀 About to call handleSendMessage with transcript:', transcript);
-      
-      // Small delay to ensure UI state is properly updated
-      setTimeout(() => {
-        handleSendMessage(transcript);
-        setIsListening(false);
-        setIsProcessingVoice(false); // Clear processing state when result is received
-      }, 50);
-    };
-
-    speechService.onError = (error) => {
-      console.error('Speech error received:', error);
-      setError(error);
-      setIsListening(false);
-      setIsProcessingVoice(false); // Clear processing state on error
-    };
-
-    speechService.onStart = () => {
-      console.log('Speech recognition started');
-      setIsListening(true);
-      setError('');
-      setIsProcessingVoice(false); // Clear processing state when actually started
-    };
-
-    speechService.onEnd = () => {
-      console.log('Speech recognition ended');
-      setIsListening(false);
-      setIsProcessingVoice(false); // Clear processing state when ended
-    };
-
-    return () => {
-      speechService.cleanup();
-    };
-  }, [handleSendMessage]);
-
-  const playVoiceFlowAudio = (audioUrl) => {
-    console.log('playVoiceFlowAudio called with:', audioUrl?.substring(0, 50) + '...');
-    return new Promise((resolve, reject) => {
-      if (!audioUrl) {
-        resolve();
-        return;
-      }
-
-      // Stop any current audio first
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-
-      if (!audioRef.current) {
-        audioRef.current = new Audio();
-      }
-
-      const audio = audioRef.current;
-      
-      audio.onended = () => {
-        setIsSpeaking(false);
-        resolve();
-      };
-      
-      audio.onerror = (error) => {
-        console.error('Audio playback error:', error);
-        setIsSpeaking(false);
-        reject(error);
-      };
-
-      // Mobile-specific audio handling
-      audio.preload = 'metadata';
-      audio.crossOrigin = 'anonymous';
-      audio.src = audioUrl;
-      
-      setIsSpeaking(true);
-      
-      // For mobile browsers, we need to handle autoplay restrictions
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          console.error('Audio autoplay blocked:', error);
-          setIsSpeaking(false);
-          reject(error);
-        });
-      }
-    });
-  };
-
-  const initializeConversation = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const response = await voiceFlowAPI.startConversation();
-      console.log('VoiceFlow response object:', response);
-      console.log('Response has audioUrl?', !!response.audioUrl);
-      console.log('AudioUrl starts with:', response.audioUrl?.substring(0, 50));
-      
-      const newMessage = {
-        id: Date.now(),
-        text: response.text || response,
-        isUser: false,
-        timestamp: new Date()
-      };
-      
-      setMessages([newMessage]);
-      setHasStartedConversation(true);
-      
-      // Play VoiceFlow audio if available and voice is enabled
-      if (isVoiceEnabled && response.audioUrl) {
-        try {
-          await playVoiceFlowAudio(response.audioUrl);
-        } catch (error) {
-          console.error('Error playing welcome audio:', error);
-          // Fallback to browser TTS if VoiceFlow audio fails
-          if (speechService.synthesis) {
-            setIsSpeaking(true);
-            await speechService.speak(response.text);
-            setIsSpeaking(false);
-          }
-        }
-      } else if (isVoiceEnabled && speechService.synthesis) {
-        // Fallback to browser TTS if no audio URL
-        setIsSpeaking(true);
-        await speechService.speak(response.text);
-        setIsSpeaking(false);
-      }
-    } catch (error) {
-      console.error('Error initializing conversation:', error);
-      const fallbackMessage = {
-        id: Date.now(),
-        text: "Hi! I'm Clementine, your relationship advisor. How can I help you today?",
-        isUser: false,
-        timestamp: new Date()
-      };
-      setMessages([fallbackMessage]);
-      setHasStartedConversation(true);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isVoiceEnabled]);
-
-  useEffect(() => {
-    if (!hasStartedConversation) {
-      initializeConversation();
-    }
-  }, [hasStartedConversation, initializeConversation]);
-
-  const requestPermissions = async () => {
-    setError('');
-    
-    try {
-      const result = await speechService.requestMobilePermissions();
-      
-      if (result.success) {
-        setPermissionStatus(result.permissions);
-        setShowPermissionRequest(false);
-        setError('');
+          setTimeout(() => setIsSpeaking(false), 3000);
+        }, 2000);
+        
       } else {
-        setPermissionStatus(result.permissions);
-        setError(result.message);
-      }
-    } catch (error) {
-      setError('Failed to request permissions. Please try again.');
-    }
-  };
-
-  const handleVoiceInput = async () => {
-    console.log('🎤 handleVoiceInput called', { 
-      isProcessingVoice, 
-      isListening, 
-      isSpeaking, 
-      isMobile, 
-      permissionStatus,
-      speechServiceExists: !!speechService,
-      speechRecognitionSupported: !!window.SpeechRecognition || !!window.webkitSpeechRecognition
-    });
-    
-    // If currently speaking, stop the speech instead of starting voice input
-    if (isSpeaking) {
-      console.log('🛑 Stopping speech playback');
-      setIsProcessingVoice(false); // Clear processing state immediately
-      await stopPlayback();
-      return;
-    }
-    
-    // Prevent multiple simultaneous requests
-    if (isProcessingVoice) {
-      console.log('⚠️ Already processing voice, returning');
-      return;
-    }
-
-    // On mobile, check permissions first
-    if (isMobile && permissionStatus.microphone !== 'granted') {
-      console.log('Mobile permission not granted, showing request');
-      setShowPermissionRequest(true);
-      return;
-    }
-
-    if (isListening) {
-      // Stop listening
-      console.log('🛑 Manually stopping listening');
-      speechService.stopListening();
-      setIsListening(false);
-    } else {
-      // Start voice input
-      console.log('🎤 Starting voice input');
-      
-      setError('');
-      setIsProcessingVoice(true);
-      
-      try {
-        const success = await speechService.startListening();
-        console.log('Speech service start result:', success);
-        if (!success) {
-          // Permission might have been revoked, show request again
-          if (isMobile) {
-            setShowPermissionRequest(true);
-          }
+        console.log('🗣️ Conversation already active - triggering voice interaction');
+        
+        // Activate voice mode for ongoing conversation
+        await activateVoiceMode();
+        
+        // Try to interact or restart if needed
+        if (window.voiceflow.chat.interact) {
+          window.voiceflow.chat.interact({
+            type: 'text',
+            payload: 'continue voice conversation'
+          });
+        } else {
+          // Fallback: restart conversation
+          window.voiceflow.chat.open();
         }
-      } catch (error) {
-        console.error('Voice input error:', error);
-        setError('Voice input failed. Please try again.');
-      } finally {
-        setIsProcessingVoice(false);
+        
+        // Visual feedback
+        setIsListening(true);
+        setTimeout(() => setIsListening(false), 1500);
       }
-    }
-  };
-
-  // Push-to-talk: Start recording when button is pressed
-  const handleVoiceStart = async () => {
-    console.log('🎤 handleVoiceStart called (push-to-talk START)');
-    
-    // If currently speaking, stop the speech instead of starting voice input
-    if (isSpeaking) {
-      console.log('🛑 Stopping speech playback');
-      await stopPlayback();
-      return;
-    }
-    
-    // Prevent multiple simultaneous requests
-    if (isListening) {
-      console.log('⚠️ Already listening, returning');
-      return;
-    }
-
-    // On mobile, check permissions first
-    if (isMobile && permissionStatus.microphone !== 'granted') {
-      console.log('Mobile permission not granted, showing request');
-      setShowPermissionRequest(true);
-      return;
-    }
-
-    // Start voice input
-    console.log('🎤 Starting push-to-talk recording');
-    setError('');
-    
-    try {
-      const success = await speechService.startListening();
-      console.log('Speech service start result:', success);
-      if (!success) {
-        if (isMobile) {
-          setShowPermissionRequest(true);
-        }
-      }
+      
     } catch (error) {
-      console.error('Voice input error:', error);
-      setError('Voice input failed. Please try again.');
-    }
-  };
-
-  // Push-to-talk: Stop recording when button is released
-  const handleVoiceEnd = () => {
-    console.log('🛑 handleVoiceEnd called (push-to-talk END)');
-    
-    if (isListening) {
-      console.log('🛑 Stopping push-to-talk recording');
-      speechService.stopListening();
+      console.error('❌ Error with VoiceFlow interaction:', error);
+      // Reset state on error
+      setConversationStarted(false);
       setIsListening(false);
+      setIsSpeaking(false);
     }
   };
 
-  const toggleSpeech = async () => {
-    if (isSpeaking) {
-      await stopPlayback();
-    }
+  const handleVoiceToggle = () => {
     setIsVoiceEnabled(!isVoiceEnabled);
+    
+    // If disabling voice and conversation is active, close it
+    if (isVoiceEnabled && conversationStarted && window.voiceflow && window.voiceflow.chat) {
+      window.voiceflow.chat.close();
+    }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    handleSendMessage(inputMessage);
+  const handleEmailChat = () => {
+    // Future feature: Export conversation to email
+    console.log('📧 Email chat feature coming soon...');
   };
 
-  const resetConversation = () => {
-    voiceFlowAPI.resetSession();
-    setMessages([]);
-    setHasStartedConversation(false);
-    speechService.synthesis.cancel();
-    setIsSpeaking(false);
+  const handleAreaEnter = (area) => {
+    setHoveredArea(area);
+  };
+
+  const handleAreaLeave = () => {
+    setHoveredArea(null);
   };
 
   return (
-    <div 
-      className="min-h-screen pb-24"
-      style={{
-        background: 'linear-gradient(135deg, #ff6b6b 0%, #4ecdc4 25%, #45b7d1 50%, #96ceb4 75%, #ffeaa7 100%)',
-        animation: 'gradient-shift 3s ease infinite'
-      }}
-    >
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Mobile Permission Request Modal */}
-        {showPermissionRequest && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex flex-col items-center justify-center p-4 clementine-face-interface">
+      
+      {/* Back Button - Minimal and elegant */}
+      <button
+        onClick={() => navigate('/')}
+        className="absolute top-6 left-6 p-3 bg-white bg-opacity-80 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 text-gray-600 hover:text-gray-800"
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </button>
+
+      {/* Chat Controls - Top right corner */}
+      <div className="absolute top-6 right-6 flex space-x-3">
+        {/* Voice Toggle */}
+        <button
+          onClick={handleVoiceToggle}
+          className={`p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 ${
+            isVoiceEnabled 
+              ? 'bg-green-500 text-white' 
+              : 'bg-red-500 text-white'
+          }`}
+          title={isVoiceEnabled ? 'Voice Enabled' : 'Voice Disabled'}
+        >
+          {isVoiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+        </button>
+
+        {/* Text Mode Toggle */}
+        <button
+          onClick={() => setChatMode(chatMode === 'voice' ? 'text' : 'voice')}
+          className={`p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 ${
+            chatMode === 'text' 
+              ? 'bg-blue-500 text-white' 
+              : 'bg-white bg-opacity-80 text-gray-600'
+          }`}
+          title="Toggle Text Mode"
+        >
+          <MessageSquare className="w-5 h-5" />
+        </button>
+
+        {/* Email Chat */}
+        <button
+          onClick={handleEmailChat}
+          className="p-3 bg-white bg-opacity-80 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 text-gray-600 hover:text-gray-800"
+          title="Email Conversation"
+        >
+          <Mail className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Main Clementine Face - 90% of screen focus */}
+      <div className="relative max-w-sm mx-auto mb-8">
+        
+        {/* IMAGE CONTAINER - Same structure as home page */}
+        <div className="relative" style={{ display: 'inline-block', margin: '0 auto' }}>
+          
+          {/* IMAGE STACK - All images in same grid cell */}
+          <div style={{ 
+            display: 'grid',
+            gridTemplateColumns: '1fr',
+            gridTemplateRows: '1fr'
+          }}>
+            
+            {/* Base Image - Always visible */}
+            <img 
+              ref={imageRef}
+              src="/images/clementine-base.jpg" 
+              alt="Clementine" 
+              className="w-full h-auto rounded-3xl shadow-2xl cursor-pointer"
+              style={{ 
+                gridColumn: 1,
+                gridRow: 1,
+                zIndex: 1
+              }}
+              onClick={handleFaceClick}
+              onLoad={() => {
+                if (imageRef.current) {
+                  const rect = imageRef.current.getBoundingClientRect();
+                  setImageSize({ width: rect.width, height: rect.height });
+                }
+              }}
+            />
+            
+            {/* Speaking Animation - Shows when Clementine is talking */}
+            {isSpeaking && (
+              <img 
+                src="/images/clementine-mouth-hover.png" 
+                alt="Speaking" 
+                className="w-full h-auto rounded-3xl animate-pulse"
+                style={{ 
+                  gridColumn: 1,
+                  gridRow: 1,
+                  zIndex: 2
+                }}
+                onError={(e) => {
+                  console.log('Speaking animation image failed to load:', e.target.src);
+                  e.target.style.display = 'none';
+                }}
+              />
+            )}
+            
+            {/* Listening Animation - Shows when listening to user */}
+            {isListening && (
+              <img 
+                src="/images/clementine-left-eye-hover.png" 
+                alt="Listening" 
+                className="w-full h-auto rounded-3xl"
+                style={{ 
+                  gridColumn: 1,
+                  gridRow: 1,
+                  zIndex: 2,
+                  animation: 'pulse 2s infinite'
+                }}
+                onError={(e) => {
+                  console.log('Listening animation image failed to load:', e.target.src);
+                  e.target.style.display = 'none';
+                }}
+              />
+            )}
+            
+          </div>
+
+          {/* CONVERSATION TRIGGER ZONE - Covers entire face for voice interaction */}
+          {imageSize.width > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 10,
+                cursor: 'pointer'
+              }}
+              onMouseEnter={() => handleAreaEnter('conversation')}
+              onMouseLeave={handleAreaLeave}
+              onTouchStart={() => handleAreaEnter('conversation')}
+              onTouchEnd={handleAreaLeave}
+              onClick={handleFaceClick}
+            >
+              {hoveredArea === 'conversation' && (
+                <div className="flex items-center justify-center h-full">
+                  {!isVoiceFlowLoaded ? (
+                    <div className="bg-blue-600 bg-opacity-90 text-white px-4 py-2 rounded-full text-lg flex items-center gap-2">
+                      <Heart className="w-5 h-5 animate-pulse" />
+                      Loading...
+                    </div>
+                  ) : !conversationStarted ? (
+                    <div className="bg-pink-600 bg-opacity-90 text-white px-4 py-2 rounded-full text-lg flex items-center gap-2 animate-pulse">
+                      <Heart className="w-5 h-5" />
+                      Start Talking
+                    </div>
+                  ) : (
+                    <div className="bg-purple-600 bg-opacity-90 text-white px-4 py-2 rounded-full text-lg flex items-center gap-2 animate-pulse">
+                      <Heart className="w-5 h-5" />
+                      Keep Talking
+                    </div>
+                  )}
                 </div>
-                
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                  Enable Voice Chat
-                </h3>
-                
-                <p className="text-gray-600 text-sm mb-6">
-                  {isMobile && speechService.isIOS ? 
-                    "Clementine needs microphone access to hear you. You'll see a permission popup - please tap 'Allow'." :
-                    "Clementine needs microphone access to have voice conversations with you."
-                  }
-                </p>
-                
-                <div className="space-y-3">
-                  <button
-                    onClick={requestPermissions}
-                    className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
-                  >
-                    Allow Microphone Access
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowPermissionRequest(false)}
-                    className="w-full text-gray-500 hover:text-gray-700 font-medium py-2 transition-colors"
-                  >
-                    Maybe Later
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
+          )}
+          
+        </div>
+
+      </div>
+
+      {/* Status Indicators */}
+      <div className="text-center mb-4">
+        {!isVoiceFlowLoaded && (
+          <div className="bg-blue-500 text-white px-4 py-2 rounded-full text-sm animate-pulse mb-2">
+            🔄 Loading Clementine's voice system...
           </div>
         )}
-
-        {/* Header */}
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-pink-400 to-purple-400 rounded-full flex items-center justify-center mx-auto mb-4">
-            <MessageSquare className="w-8 h-8 text-white" />
+        {isListening && (
+          <div className="bg-red-500 text-white px-4 py-2 rounded-full text-sm animate-pulse mb-2">
+            🎤 Clementine is listening...
           </div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Chat with Clementine
-            <span className="text-xs bg-red-500 text-white px-3 py-1 rounded-full ml-2 animate-pulse">
-              🔥 UPDATED v3.0 🔥
-            </span>
-          </h1>
-          <p className="text-gray-600">
-            Voice chat with your AI relationship advisor
-          </p>
-          
-          {/* Controls */}
-          <div className="flex justify-center space-x-4 mt-4">
-            <button
-              onClick={toggleSpeech}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                isVoiceEnabled 
-                  ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {isVoiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              <span>{isVoiceEnabled ? 'Voice On' : 'Voice Off'}</span>
-            </button>
-            
-            <button
-              onClick={resetConversation}
-              className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Reset Chat</span>
-            </button>
+        )}
+        {isSpeaking && (
+          <div className="bg-green-500 text-white px-4 py-2 rounded-full text-sm animate-pulse mb-2">
+            🗣️ Clementine is speaking...
           </div>
-        </div>
-
-        {/* Chat Messages */}
-        <div className="bg-white rounded-3xl shadow-xl border border-pink-100 mb-4">
-          <div className="h-96 overflow-y-auto p-6 space-y-4">
-            {messages.length === 0 && hasStartedConversation && (
-              <div className="text-center text-gray-500 py-8">
-                <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p>Starting conversation with Clementine...</p>
-              </div>
-            )}
-            
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
-                    message.isUser
-                      ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white'
-                      : message.isError
-                      ? 'bg-red-100 text-red-700 border border-red-200'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}
-                >
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {message.text}
-                  </p>
-                  <p className={`text-xs mt-2 ${
-                    message.isUser ? 'text-pink-100' : 'text-gray-500'
-                  }`}>
-                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-              </div>
-            ))}
-            
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-100 text-gray-800 max-w-xs lg:max-w-md px-4 py-3 rounded-2xl">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse"></div>
-                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
-                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
-                    <span className="text-sm">Clementine is thinking...</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <div ref={messagesEndRef} />
+        )}
+        {conversationStarted && !isListening && !isSpeaking && (
+          <div className="bg-purple-500 text-white px-4 py-2 rounded-full text-sm mb-2">
+            💬 In conversation - speak naturally
           </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-xl border border-pink-100 p-6">
-          <div className="flex space-x-4">
-            {/* Text Input */}
-            <div className="flex-1 flex space-x-4">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSendMessage(inputMessage)}
-                placeholder="✨ ALWAYS ACTIVE TEXT INPUT ✨"
-                style={{
-                  backgroundColor: '#fef2f2',
-                  borderColor: '#ef4444',
-                  borderWidth: '3px'
-                }}
-                className="flex-1 px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-              />
-              
-              {/* Microphone/Stop Button - Push-to-Talk */}
-              <button
-                // Touch events for mobile push-to-talk
-                onTouchStart={(e) => {
-                  e.preventDefault();
-                  console.log('📱 TOUCH START - Push-to-talk BEGIN');
-                  handleVoiceStart();
-                }}
-                onTouchEnd={(e) => {
-                  e.preventDefault();
-                  console.log('📱 TOUCH END - Push-to-talk RELEASE');
-                  handleVoiceEnd();
-                }}
-                onTouchCancel={(e) => {
-                  e.preventDefault();
-                  console.log('� TOUCH CANCEL - Push-to-talk RELEASE');
-                  handleVoiceEnd();
-                }}
-                // Mouse events for desktop
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  console.log('🖱️ MOUSE DOWN - Push-to-talk BEGIN (desktop)');
-                  handleVoiceStart();
-                }}
-                onMouseUp={(e) => {
-                  e.preventDefault();
-                  console.log('🖱️ MOUSE UP - Push-to-talk RELEASE (desktop)');
-                  handleVoiceEnd();
-                }}
-                onMouseLeave={(e) => {
-                  if (isListening) {
-                    e.preventDefault();
-                    console.log('🖱️ MOUSE LEAVE - Push-to-talk RELEASE (desktop)');
-                    handleVoiceEnd();
-                  }
-                }}
-                // Click fallback for stopping speech
-                onClick={(e) => {
-                  e.preventDefault();
-                  console.log('�🔥 BUTTON CLICKED! States:', { isLoading, isListening, isSpeaking, isProcessingVoice });
-                  // Only use click for stopping speech, not for voice input
-                  if (isSpeaking) {
-                    handleVoiceInput();
-                  }
-                }}
-                style={{
-                  backgroundColor: isListening ? '#dc2626' : isSpeaking ? '#b91c1c' : '#ec4899',
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '16px',
-                  transform: isListening ? 'scale(1.1)' : 'scale(1)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  opacity: 1, // Always available
-                  minWidth: '64px',
-                  minHeight: '64px',
-                  userSelect: 'none',
-                  WebkitUserSelect: 'none',
-                  WebkitTouchCallout: 'none'
-                }}
-                className="px-4 py-3 rounded-xl transition-all duration-200 flex items-center justify-center min-w-[64px]"
-                disabled={false} // Never disabled
-                title={
-                  isListening ? "🛑 RELEASE TO STOP RECORDING" : 
-                  isSpeaking ? "🛑 TAP TO STOP CLEMENTINE" :
-                  isMobile ? "🎤 HOLD TO TALK" : "🎤 HOLD/CLICK TO TALK"
-                }
-              >
-                {isListening ? (
-                  <Square className="w-5 h-5" />
-                ) : isProcessingVoice && !isSpeaking ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : isSpeaking ? (
-                  <Square className="w-5 h-5" />
-                ) : (
-                  <Mic className="w-5 h-5" />
-                )}
-              </button>
-            </div>
-
-            {/* Send Button */}
-            <button
-              type="submit"
-              disabled={isLoading || !inputMessage.trim()}
-              className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-semibold transition-all duration-300 ${
-                isLoading || !inputMessage.trim()
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600'
-              }`}
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </div>
-          
-          {/* Enhanced Status Indicators */}
-          <div className="mt-4 flex justify-between items-center text-sm">
-            <div className="flex space-x-4">
-              {/* Debug States */}
-              <div className="text-xs bg-gray-100 px-2 py-1 rounded">
-                🐛 DEBUG: L:{isListening ? '✅' : '❌'} S:{isSpeaking ? '✅' : '❌'} P:{isProcessingVoice ? '✅' : '❌'} Load:{isLoading ? '✅' : '❌'}
-              </div>
-              
-              {isListening && (
-                <span className="text-red-500 font-bold animate-pulse text-lg">
-                  🔴 Listening... Tap mic to stop
-                </span>
-              )}
-              
-              {isSpeaking && (
-                <span className="text-blue-500 font-bold animate-pulse text-lg">
-                  🔊 Speaking... Tap mic to stop
-                </span>
-              )}
-              
-              {isProcessingVoice && (
-                <span className="text-purple-500 font-medium animate-pulse">
-                  🎤 Processing your voice...
-                </span>
-              )}
-              
-              {error && (
-                <span className="text-red-600 font-medium">
-                  ⚠️ {error}
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-gray-500">
-              {isMobile && permissionStatus.microphone === 'denied' ? 
-                "Microphone access denied" :
-                isMobile && permissionStatus.microphone === 'unknown' ? 
-                "Tap mic to enable voice" :
-                isListening ? "Recording voice..." :
-                isSpeaking ? "Tap mic to interrupt" :
-                "Tap mic to talk"
-              }
-            </div>
-          </div>
-        </form>
+        )}
       </div>
+
+      {/* Title and Instructions */}
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">Chat with Clementine</h1>
+        <p className="text-gray-600 mb-2">Your AI relationship advisor</p>
+        
+        {!isVoiceFlowLoaded ? (
+          <div className="text-sm text-gray-500 space-y-1">
+            <p className="font-medium text-blue-600">Loading voice system... 🔄</p>
+            <p>Preparing your telephone-like conversation experience</p>
+          </div>
+        ) : chatMode === 'voice' ? (
+          <div className="text-sm text-gray-500 space-y-1">
+            <p className="font-medium text-purple-600">Voice Mode Active 🎤</p>
+            {!conversationStarted ? (
+              <>
+                <p>Click anywhere on Clementine's face to start talking</p>
+                <p className="text-xs">Just like a phone conversation - natural and flowing</p>
+              </>
+            ) : (
+              <>
+                <p>Conversation active - speak naturally anytime</p>
+                <p className="text-xs">Clementine can hear you and will respond with voice</p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500 space-y-1">
+            <p className="font-medium text-blue-600">Text Mode Active 💬</p>
+            <p>Text chat interface will appear here</p>
+          </div>
+        )}
+      </div>
+
+      {/* VoiceFlow Integration Zone - This is where the hidden widget will go */}
+      <div id="voiceflow-container" style={{ display: 'none' }}>
+        {/* VoiceFlow widget will be loaded here invisibly */}
+      </div>
+
+      {/* Future Text Chat Area - Only shown in text mode */}
+      {chatMode === 'text' && (
+        <div className="mt-8 w-full max-w-md bg-white rounded-2xl shadow-xl p-4">
+          <div className="text-center text-gray-500 py-8">
+            <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <p>Text chat interface coming soon...</p>
+            <p className="text-xs mt-2">For now, enjoy voice conversations!</p>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

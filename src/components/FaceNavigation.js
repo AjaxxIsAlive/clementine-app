@@ -29,7 +29,7 @@ function FaceNavigation() {
   const handleAreaClick = (area) => {
     switch(area) {
       case 'chat':
-        navigate('/voice-options');  // Show all VoiceFlow integration options
+        navigate('/chat');  // Go directly to the new face-based chat page
         break;
       case 'self-check':
         navigate('/self-check');
