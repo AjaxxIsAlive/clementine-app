@@ -99,7 +99,7 @@ function FaceNavigation() {
             {/* Base Image - Always visible */}
             <img 
               ref={imageRef}
-              src="/images/clementine-base.jpg" 
+              src="/images/clementine-eyesclosed.jpg" 
               alt="Clementine" 
               className="w-full h-auto rounded-3xl shadow-2xl"
               style={{ 
@@ -118,7 +118,7 @@ function FaceNavigation() {
             {/* Left Eye Overlay - Shows when left eye hovered */}
             {hoveredArea === 'self-check' && (
               <img 
-                src="/images/clementine-left-eye-hover.png" 
+                src="/images/clementine-left-eyeopen-hover.png" 
                 alt="Left eye open" 
                 className="w-full h-auto rounded-3xl"
                 style={{ 
@@ -132,7 +132,7 @@ function FaceNavigation() {
             {/* Right Eye Overlay - Shows when right eye hovered */}
             {hoveredArea === 'chemistry-check' && (
               <img 
-                src="/images/clementine-right-eye-hover.png" 
+                src="/images/clementine-right-eyeopen-hover.png" 
                 alt="Right eye open" 
                 className="w-full h-auto rounded-3xl"
                 style={{ 
