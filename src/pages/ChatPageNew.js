@@ -55,13 +55,17 @@ function ChatPage() {
           console.log('🔧 VoiceFlow script loaded, initializing...');
           
           window.voiceflow.chat.load({
-            verify: { projectID: '68829d0cd2b91792a19c12a1' },
-            url: 'https://general-runtime.voiceflow.com',
-            versionID: 'production',
-            voice: {
-              url: "https://runtime-api.voiceflow.com"
-            }
-          });
+  verify: { projectID: '68829d0cd2b91792a19c12a1' },
+  url: 'https://general-runtime.voiceflow.com',
+  versionID: 'production',
+  userID: 'clementine_user_' + Math.random().toString(36).substr(2, 9),
+  voice: {
+    url: "https://runtime-api.voiceflow.com"
+  },
+  assistant: {
+    persistence: 'localStorage'
+  }
+});
           
           setIsVoiceFlowLoaded(true);
           console.log('✅ VoiceFlow widget initialized');

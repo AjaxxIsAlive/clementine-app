@@ -5,220 +5,16 @@ import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart } from 'lucide-
 function ChatPage() {
   const [hoveredArea, setHoveredArea] = useState(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
-  const [chatMode, setChatMode] = useState('voice'); // 'voice' or 'text'
+  const [chatMode, setChatMode] = useState('voice');
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [isVoiceFlowLoaded, setIsVoiceFlowLoaded] = useState(false);
-  const [conversationStarted, setConversationStarted] = useState(false);
   const imageRef = useRef(null);
   const navigate = useNavigate();
-
-  // Initialize VoiceFlow with proper async loading and error handling
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.voiceflow.com/widget-next/bundle.mjs';
-      script.type = 'module';
-      script.async = true;
-      
-      script.onload = () => {
-        const initializeVoiceFlow = async () => {
-          try {
-            // Wait for VoiceFlow to be fully available
-            let attempts = 0;
-            while ((!window.voiceflow || !window.voiceflow.chat) && attempts < 50) {
-              console.log('⏳ Waiting for VoiceFlow to be available...');
-              await new Promise(resolve => setTimeout(resolve, 100));
-              attempts++;
-            }
-
-            if (!window.voiceflow || !window.voiceflow.chat) {
-              throw new Error('VoiceFlow failed to load after 5 seconds');
-            }
-
-            const config = {
-              verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
-              url: 'https://general-runtime.voiceflow.com',
-              versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
-              
-              assistant: {
-                title: 'Clementine',
-                description: 'Your AI Relationship Advisor',
-                avatar: {
-                  image: '/images/clementine-face.jpg',
-                  name: 'Clementine'
-                },
-                color: '#ec4899',
-                persistence: 'memory', // Reset on page refresh for fresh sessions
-                type: 'chat',
-                renderMode: 'popover',
-                voice: {
-                  enabled: true,
-                  autoplay: true,
-                  language: 'en-US',
-                  wakeWord: false,
-                  startListening: true,
-                },
-              },
-              
-              // Hide launcher for custom face interface
-              launcher: { 
-                hidden: true 
-              },
-              
-              // Fresh session each time
-              session: {
-                userID: 'clementine-face-user-' + Date.now(),
-              },
-              
-              autostart: false,
-            };
-
-            console.log('🔧 Loading VoiceFlow with simplified config');
-            
-            // Load VoiceFlow with basic configuration first
-            await window.voiceflow.chat.load(config);
-            
-            console.log('✅ VoiceFlow basic load complete');
-            
-            // Add event listeners for voice activity tracking
-            if (window.voiceflow.chat.listen) {
-              window.voiceflow.chat.listen('voice.start', () => {
-                console.log('🎤 Voice recording started');
-                setIsListening(true);
-                setIsSpeaking(false);
-              });
-              
-              window.voiceflow.chat.listen('voice.end', () => {
-                console.log('🎤 Voice recording ended');
-                setIsListening(false);
-              });
-              
-              window.voiceflow.chat.listen('audio.start', () => {
-                console.log('🔊 Audio playback started');
-                setIsSpeaking(true);
-                setIsListening(false);
-              });
-              
-              window.voiceflow.chat.listen('audio.end', () => {
-                console.log('🔊 Audio playback ended');
-                setIsSpeaking(false);
-              });
-              
-              window.voiceflow.chat.listen('response', (response) => {
-                console.log('💬 VoiceFlow response received:', response);
-              });
-            }
-            
-            // Wait for initialization
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            setIsVoiceFlowLoaded(true);
-            console.log('✅ VoiceFlow widget loaded and ready for voice interaction');
-            
-          } catch (error) {
-            console.error('❌ Error initializing VoiceFlow:', error);
-            setIsVoiceFlowLoaded(false);
-          }
-        };
-
-        // Start initialization
-        initializeVoiceFlow();
-      };
-      
-      script.onerror = () => {
-        console.error('❌ Failed to load VoiceFlow script');
-        setIsVoiceFlowLoaded(false);
-      };
-      
-      document.head.appendChild(script);
-      
-      return () => {
-        if (document.head.contains(script)) {
-          document.head.removeChild(script);
-        }
-      };
-    }
-  }, []);  // Hide VoiceFlow widget UI elements
-  useEffect(() => {
-    const hideVoiceFlowUI = () => {
-      // Hide all VoiceFlow UI elements to keep only the face interface
-      const style = document.createElement('style');
-      style.textContent = `
-        /* AGGRESSIVE VOICEFLOW HIDING - Completely hide all widget UI */
-        iframe[src*="voiceflow"],
-        div[data-voiceflow],
-        div[class*="voiceflow"],
-        div[id*="voiceflow"],
-        .vf-chat,
-        .vf-widget,
-        .vf-launcher,
-        .vf-chat-widget,
-        .vf-chat-container,
-        .vf-floating-chat,
-        #voiceflow-chat,
-        #vf-chat-widget,
-        [class*="VoiceflowWebChat"],
-        [id*="VoiceflowWebChat"],
-        div[style*="position: fixed"],
-        div[style*="z-index: 2147483647"],
-        div[style*="z-index: 2147483646"],
-        div[style*="bottom: 20px"],
-        div[style*="right: 20px"] {
-          display: none !important;
-          visibility: hidden !important;
-          opacity: 0 !important;
-          width: 0 !important;
-          height: 0 !important;
-          position: absolute !important;
-          left: -9999px !important;
-          top: -9999px !important;
-          pointer-events: none !important;
-          z-index: -1 !important;
-        }
-        
-        /* Hide any overlay or backdrop */
-        .vf-overlay,
-        .vf-backdrop,
-        div[role="dialog"],
-        div[aria-modal="true"] {
-          display: none !important;
-        }
-        
-        /* Ensure our face interface stays visible and clickable */
-        .face-container,
-        .face-container * {
-          display: block !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-          pointer-events: auto !important;
-          z-index: 1000 !important;
-        }
-        
-        /* Ensure our face interface is always visible */
-        .clementine-face-interface {
-          z-index: 9999 !important;
-          position: relative !important;
-        }
-      `;
-      document.head.appendChild(style);
-      
-      return () => {
-        if (document.head.contains(style)) {
-          document.head.removeChild(style);
-        }
-      };
-    };
-
-    return hideVoiceFlowUI();
-  }, []);
 
   // Update image size when window resizes or image loads
   useEffect(() => {
     const updateImageSize = () => {
       if (imageRef.current) {
-        // Small delay to ensure image is fully rendered
         setTimeout(() => {
           const rect = imageRef.current.getBoundingClientRect();
           setImageSize({ width: rect.width, height: rect.height });
@@ -232,139 +28,275 @@ function ChatPage() {
     return () => window.removeEventListener('resize', updateImageSize);
   }, []);
 
-  const requestMicrophonePermission = async () => {
-    try {
-      console.log('🎤 Requesting microphone permission...');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log('✅ Microphone permission granted');
-      
-      // Stop the stream since we just needed permission
-      stream.getTracks().forEach(track => track.stop());
-      return true;
-    } catch (error) {
-      console.error('❌ Microphone permission denied:', error);
-      return false;
+  // Load VoiceFlow widget ONCE
+  useEffect(() => {
+    // Protection against double loading
+    if (window.voiceflowChatLoaded) {
+      console.log('✅ VoiceFlow already loaded');
+      setIsVoiceFlowLoaded(true);
+      return;
     }
-  };
 
-  const activateVoiceMode = async () => {
-    try {
-      console.log('🔊 Activating voice mode...');
-      
-      // Try to access VoiceFlow's internal voice methods
-      if (window.voiceflow && window.voiceflow.chat) {
-        // Send a launch interaction to start the conversation
-        if (window.voiceflow.chat.interact) {
-          window.voiceflow.chat.interact({
-            type: 'launch'
-          });
-          console.log('✅ Launch interaction sent');
-        }
-        
-        // Try alternative voice activation methods
-        if (window.voiceflow.chat.startListening) {
-          window.voiceflow.chat.startListening();
-          console.log('✅ startListening called');
-        }
-      }
-      
-      console.log('✅ Voice mode activation attempted');
-    } catch (error) {
-      console.error('⚠️ Voice mode activation error:', error);
+    // Check if script already exists
+    if (document.querySelector('script[src*="voiceflow"]')) {
+      console.log('✅ VoiceFlow script already exists');
+      window.voiceflowChatLoaded = true;
+      setIsVoiceFlowLoaded(true);
+      return;
     }
-  };
 
-  const handleFaceClick = async () => {
-    console.log('👆 Face clicked! VoiceFlow loaded:', isVoiceFlowLoaded);
+    console.log('🔧 Loading VoiceFlow widget...');
+    window.voiceflowChatLoaded = true;
     
-    if (!isVoiceFlowLoaded) {
-      console.log('⏳ VoiceFlow still loading, please wait...');
-      return;
-    }
-
-    // Check if VoiceFlow is actually available
-    if (!window.voiceflow || !window.voiceflow.chat) {
-      console.error('❌ VoiceFlow not available');
-      return;
-    }
-
-    try {
-      if (!conversationStarted) {
-        console.log('🎤 Starting voice conversation with Clementine...');
-        
-        // Request microphone permission first
-        const micPermission = await requestMicrophonePermission();
-        if (!micPermission) {
-          console.log('⚠️ Microphone permission required for voice chat');
-          // Continue anyway, user might grant permission later
+    // Official VoiceFlow script
+    (function(d, t) {
+        var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
+        v.onload = function() {
+          console.log('🔧 VoiceFlow script loaded, initializing...');
+          
+          window.voiceflow.chat.load({
+            verify: { projectID: '68829d0cd2b91792a19c12a1' },
+            url: 'https://general-runtime.voiceflow.com',
+            versionID: 'production',
+            voice: {
+              url: "https://runtime-api.voiceflow.com"
+            }
+          });
+          
+          setIsVoiceFlowLoaded(true);
+          console.log('✅ VoiceFlow widget initialized');
+          
+          // Add DOM inspection after initialization
+          setTimeout(() => {
+            inspectVoiceFlowDOM();
+          }, 3000);
         }
-        
-        // Start the conversation - use show() instead of open() for overlay mode
-        if (window.voiceflow.chat.show) {
-          window.voiceflow.chat.show();
-        } else {
-          window.voiceflow.chat.open();
+        v.onerror = function() {
+          console.error('❌ Failed to load VoiceFlow script');
+          window.voiceflowChatLoaded = false;
+          setIsVoiceFlowLoaded(false);
         }
-        setConversationStarted(true);
+        v.src = "https://cdn.voiceflow.com/widget-next/bundle.mjs"; 
+        v.type = "text/javascript"; 
+        s.parentNode.insertBefore(v, s);
+    })(document, 'script');
+  }, []);
+
+  // Hide VoiceFlow widget completely while preserving functionality
+  useEffect(() => {
+    if (isVoiceFlowLoaded) {
+      // Wait a moment for widget to fully render
+      setTimeout(() => {
+        const style = document.createElement('style');
+        style.id = 'voiceflow-hiding-styles';
+        style.textContent = `
+          /* COMPREHENSIVE VOICEFLOW WIDGET HIDING */
+          /* Hide main widget containers */
+          iframe[src*="voiceflow"],
+          div[data-voiceflow],
+          div[class*="voiceflow"],
+          div[id*="voiceflow"],
+          .vf-chat,
+          .vf-widget,
+          .vf-launcher,
+          .vf-chat-widget,
+          .vf-chat-container,
+          .vf-floating-chat,
+          #voiceflow-chat,
+          #vf-chat-widget,
+          [class*="VoiceflowWebChat"],
+          [id*="VoiceflowWebChat"],
+          
+          /* Hide by z-index patterns */
+          div[style*="z-index: 2147483647"],
+          div[style*="z-index: 2147483646"],
+          div[style*="z-index: 999999"],
+          
+          /* Hide floating/fixed positioned elements */
+          div[style*="position: fixed"][style*="bottom"],
+          div[style*="position: fixed"][style*="right"],
+          
+          /* VoiceFlow specific selectors */
+          .voiceflow-chat,
+          [data-widget="voiceflow"],
+          [data-testid*="voiceflow"] {
+            /* Keep in DOM but make completely invisible */
+            position: absolute !important;
+            left: -9999px !important;
+            top: -9999px !important;
+            width: 1px !important;
+            height: 1px !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -999999 !important;
+            visibility: hidden !important;
+            overflow: hidden !important;
+            /* DO NOT use display: none - breaks audio/voice APIs */
+          }
+          
+          /* Exception: Keep our container visible */
+          #voiceflow-container {
+            display: block !important;
+            position: static !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+          }
+          
+          /* Ensure audio elements remain functional */
+          iframe[src*="voiceflow"] audio,
+          div[data-voiceflow] audio,
+          .vf-chat audio,
+          .vf-widget audio,
+          [class*="voiceflow"] audio {
+            position: absolute !important;
+            left: -9998px !important;
+            top: -9998px !important;
+            width: 1px !important;
+            height: 1px !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            /* Keep audio functional - no display: none */
+            pointer-events: none !important;
+          }
+        `;
         
-        console.log('✅ VoiceFlow conversation opened');
+        document.head.appendChild(style);
+        console.log('🙈 VoiceFlow widget hidden completely (functionality preserved)');
         
-        // Wait a moment for the widget to initialize, then activate voice
-        setTimeout(async () => {
-          await activateVoiceMode();
-        }, 1500);
-        
-        // Visual feedback
-        setIsListening(true);
+        // Additional aggressive hiding after delay
         setTimeout(() => {
-          setIsListening(false);
-          setIsSpeaking(true);
-          setTimeout(() => setIsSpeaking(false), 3000);
+          // Find any remaining visible VoiceFlow elements
+          const allElements = document.querySelectorAll('*');
+          Array.from(allElements).forEach(el => {
+            const classes = el.className?.toString() || '';
+            const id = el.id || '';
+            
+            if ((classes.includes('voiceflow') || id.includes('voiceflow')) && 
+                el.id !== 'voiceflow-container') {
+              // Apply hiding styles directly
+              el.style.position = 'absolute';
+              el.style.left = '-9999px';
+              el.style.top = '-9999px';
+              el.style.width = '1px';
+              el.style.height = '1px';
+              el.style.opacity = '0';
+              el.style.visibility = 'hidden';
+              el.style.pointerEvents = 'none';
+              el.style.zIndex = '-999999';
+            }
+          });
+          
+          console.log('🔍 Applied additional hiding to any remaining VoiceFlow elements');
         }, 2000);
         
-      } else {
-        console.log('🗣️ Conversation already active - triggering voice interaction');
+      }, 1000);
+    }
+  }, [isVoiceFlowLoaded]);
+
+  // Function to inspect VoiceFlow DOM structure
+  const inspectVoiceFlowDOM = () => {
+    console.log('🔍 INSPECTING VOICEFLOW DOM STRUCTURE:');
+    
+    // Check for shadow DOM
+    if (window.voiceflow && window.voiceflow.chat && window.voiceflow.chat._shadowRoot) {
+      const shadowRoot = window.voiceflow.chat._shadowRoot;
+      const shadowButtons = shadowRoot.querySelectorAll('button');
+      console.log(`📋 Found ${shadowButtons.length} buttons in shadow DOM`);
+      
+      shadowButtons.forEach((btn, i) => {
+        console.log(`Shadow Button ${i}:`, {
+          text: btn.textContent.trim(),
+          className: btn.className,
+          attributes: Array.from(btn.attributes).map(attr => `${attr.name}="${attr.value}"`),
+          visible: btn.offsetParent !== null
+        });
+      });
+    }
+    
+    // Check regular DOM
+    const allButtons = document.querySelectorAll('button');
+    console.log(`📋 Found ${allButtons.length} buttons in regular DOM`);
+    
+    allButtons.forEach((btn, i) => {
+      const text = btn.textContent.trim().toLowerCase();
+      if (text.includes('voice') || text.includes('call') || text.includes('start')) {
+        console.log(`Potential Voice Button ${i}:`, {
+          text: btn.textContent.trim(),
+          className: btn.className,
+          ariaLabel: btn.getAttribute('aria-label'),
+          visible: btn.offsetParent !== null
+        });
+      }
+    });
+  };
+
+  // Handle face click - try to activate voice
+  const handleFaceClick = () => {
+    console.log('👆 Face clicked! Attempting voice activation...');
+    
+    if (!isVoiceFlowLoaded) {
+      console.log('⏳ VoiceFlow still loading...');
+      return;
+    }
+
+    try {
+      // Method 1: Try Shadow DOM access
+      if (window.voiceflow && window.voiceflow.chat && window.voiceflow.chat._shadowRoot) {
+        console.log('🎯 Accessing VoiceFlow Shadow DOM...');
         
-        // Activate voice mode for ongoing conversation
-        await activateVoiceMode();
+        const shadowRoot = window.voiceflow.chat._shadowRoot;
+        const shadowButtons = shadowRoot.querySelectorAll('button');
+        console.log(`📋 Found ${shadowButtons.length} buttons in shadow DOM`);
         
-        // Try to interact or restart if needed
-        if (window.voiceflow.chat.interact) {
-          window.voiceflow.chat.interact({
-            type: 'text',
-            payload: 'continue voice conversation'
-          });
-        } else {
-          // Fallback: restart conversation
-          window.voiceflow.chat.open();
+        // Look for voice/call button
+        const callButton = Array.from(shadowButtons).find(btn => {
+          const text = btn.textContent.toLowerCase();
+          return text.includes('call') || text.includes('voice') || text.includes('start');
+        });
+        
+        if (callButton) {
+          console.log('🎯 Found voice button:', callButton.textContent);
+          callButton.click();
+          console.log('✅ Voice activated via shadow DOM!');
+          return;
         }
-        
-        // Visual feedback
-        setIsListening(true);
-        setTimeout(() => setIsListening(false), 1500);
       }
       
+      // Method 2: Try opening chat first
+      console.log('🔄 Opening VoiceFlow chat...');
+      window.voiceflow.chat.open();
+      
+      // Then try to find voice button after delay
+      setTimeout(() => {
+        if (window.voiceflow.chat._shadowRoot) {
+          const shadowRoot = window.voiceflow.chat._shadowRoot;
+          const callBtn = shadowRoot.querySelector('button');
+          if (callBtn && callBtn.textContent.toLowerCase().includes('call')) {
+            callBtn.click();
+            console.log('✅ Voice activated via delayed method');
+          }
+        }
+      }, 1000);
+      
     } catch (error) {
-      console.error('❌ Error with VoiceFlow interaction:', error);
-      // Reset state on error
-      setConversationStarted(false);
-      setIsListening(false);
-      setIsSpeaking(false);
+      console.error('❌ Error accessing VoiceFlow:', error);
+      
+      // Fallback: Try API method
+      try {
+        if (window.voiceflow && window.voiceflow.chat.interact) {
+          window.voiceflow.chat.interact({ type: 'voice' });
+          console.log('🎤 Attempted voice via API');
+        }
+      } catch (e) {
+        console.log('❌ All voice activation methods failed');
+      }
     }
   };
 
-  const handleVoiceToggle = () => {
-    setIsVoiceEnabled(!isVoiceEnabled);
-    
-    // If disabling voice and conversation is active, close it
-    if (isVoiceEnabled && conversationStarted && window.voiceflow && window.voiceflow.chat) {
-      window.voiceflow.chat.close();
-    }
-  };
-
-  const handleEmailChat = () => {
-    // Future feature: Export conversation to email
-    console.log('📧 Email chat feature coming soon...');
+  // Manual inspection helper
+  window.inspectVoiceFlow = () => {
+    inspectVoiceFlowDOM();
+    return window.voiceflow;
   };
 
   const handleAreaEnter = (area) => {
@@ -376,9 +308,9 @@ function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex flex-col items-center justify-center p-4 clementine-face-interface">
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex flex-col items-center justify-center p-4">
       
-      {/* Back Button - Minimal and elegant */}
+      {/* Back Button */}
       <button
         onClick={() => navigate('/')}
         className="absolute top-6 left-6 p-3 bg-white bg-opacity-80 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 text-gray-600 hover:text-gray-800"
@@ -386,58 +318,44 @@ function ChatPage() {
         <ArrowLeft className="w-5 h-5" />
       </button>
 
-      {/* Chat Controls - Top right corner */}
+      {/* Chat Controls */}
       <div className="absolute top-6 right-6 flex space-x-3">
-        {/* Voice Toggle */}
         <button
-          onClick={handleVoiceToggle}
+          onClick={() => setIsVoiceEnabled(!isVoiceEnabled)}
           className={`p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 ${
-            isVoiceEnabled 
-              ? 'bg-green-500 text-white' 
-              : 'bg-red-500 text-white'
+            isVoiceEnabled ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
           }`}
-          title={isVoiceEnabled ? 'Voice Enabled' : 'Voice Disabled'}
         >
           {isVoiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
         </button>
 
-        {/* Text Mode Toggle */}
         <button
           onClick={() => setChatMode(chatMode === 'voice' ? 'text' : 'voice')}
           className={`p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 ${
-            chatMode === 'text' 
-              ? 'bg-blue-500 text-white' 
-              : 'bg-white bg-opacity-80 text-gray-600'
+            chatMode === 'text' ? 'bg-blue-500 text-white' : 'bg-white bg-opacity-80 text-gray-600'
           }`}
-          title="Toggle Text Mode"
         >
           <MessageSquare className="w-5 h-5" />
         </button>
 
-        {/* Email Chat */}
         <button
-          onClick={handleEmailChat}
+          onClick={() => {/* Email functionality */}}
           className="p-3 bg-white bg-opacity-80 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 text-gray-600 hover:text-gray-800"
-          title="Email Conversation"
         >
           <Mail className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Main Clementine Face - 90% of screen focus */}
+      {/* Main Clementine Face */}
       <div className="relative max-w-sm mx-auto mb-8">
-        
-        {/* IMAGE CONTAINER - Same structure as home page */}
         <div className="relative" style={{ display: 'inline-block', margin: '0 auto' }}>
-          
-          {/* IMAGE STACK - All images in same grid cell */}
           <div style={{ 
             display: 'grid',
             gridTemplateColumns: '1fr',
             gridTemplateRows: '1fr'
           }}>
             
-            {/* Base Image - Always visible */}
+            {/* Base Image */}
             <img 
               ref={imageRef}
               src="/images/clementine-base.jpg" 
@@ -456,47 +374,9 @@ function ChatPage() {
                 }
               }}
             />
-            
-            {/* Speaking Animation - Shows when Clementine is talking */}
-            {isSpeaking && (
-              <img 
-                src="/images/clementine-mouth-hover.png" 
-                alt="Speaking" 
-                className="w-full h-auto rounded-3xl animate-pulse"
-                style={{ 
-                  gridColumn: 1,
-                  gridRow: 1,
-                  zIndex: 2
-                }}
-                onError={(e) => {
-                  console.log('Speaking animation image failed to load:', e.target.src);
-                  e.target.style.display = 'none';
-                }}
-              />
-            )}
-            
-            {/* Listening Animation - Shows when listening to user */}
-            {isListening && (
-              <img 
-                src="/images/clementine-left-eye-hover.png" 
-                alt="Listening" 
-                className="w-full h-auto rounded-3xl"
-                style={{ 
-                  gridColumn: 1,
-                  gridRow: 1,
-                  zIndex: 2,
-                  animation: 'pulse 2s infinite'
-                }}
-                onError={(e) => {
-                  console.log('Listening animation image failed to load:', e.target.src);
-                  e.target.style.display = 'none';
-                }}
-              />
-            )}
-            
           </div>
 
-          {/* CONVERSATION TRIGGER ZONE - Covers entire face for voice interaction */}
+          {/* Conversation Trigger Zone */}
           {imageSize.width > 0 && (
             <div
               style={{
@@ -516,53 +396,29 @@ function ChatPage() {
             >
               {hoveredArea === 'conversation' && (
                 <div className="flex items-center justify-center h-full">
-                  {!isVoiceFlowLoaded ? (
-                    <div className="bg-blue-600 bg-opacity-90 text-white px-4 py-2 rounded-full text-lg flex items-center gap-2">
-                      <Heart className="w-5 h-5 animate-pulse" />
-                      Loading...
-                    </div>
-                  ) : !conversationStarted ? (
-                    <div className="bg-pink-600 bg-opacity-90 text-white px-4 py-2 rounded-full text-lg flex items-center gap-2 animate-pulse">
-                      <Heart className="w-5 h-5" />
-                      Start Talking
-                    </div>
-                  ) : (
-                    <div className="bg-purple-600 bg-opacity-90 text-white px-4 py-2 rounded-full text-lg flex items-center gap-2 animate-pulse">
-                      <Heart className="w-5 h-5" />
-                      Keep Talking
-                    </div>
-                  )}
+                  <div className="bg-pink-600 bg-opacity-90 text-white px-4 py-2 rounded-full text-lg flex items-center gap-2 animate-pulse">
+                    <Heart className="w-5 h-5" />
+                    Start Talking
+                  </div>
                 </div>
               )}
             </div>
           )}
-          
         </div>
-
       </div>
 
-      {/* Status Indicators */}
+      {/* Status */}
       <div className="text-center mb-4">
-        {!isVoiceFlowLoaded && (
-          <div className="bg-blue-500 text-white px-4 py-2 rounded-full text-sm animate-pulse mb-2">
-            🔄 Loading Clementine's voice system...
-          </div>
-        )}
-        {isListening && (
-          <div className="bg-red-500 text-white px-4 py-2 rounded-full text-sm animate-pulse mb-2">
-            🎤 Clementine is listening...
-          </div>
-        )}
-        {isSpeaking && (
-          <div className="bg-green-500 text-white px-4 py-2 rounded-full text-sm animate-pulse mb-2">
-            🗣️ Clementine is speaking...
-          </div>
-        )}
-        {conversationStarted && !isListening && !isSpeaking && (
-          <div className="bg-purple-500 text-white px-4 py-2 rounded-full text-sm mb-2">
-            💬 In conversation - speak naturally
-          </div>
-        )}
+        <div className="text-xs text-gray-500">
+          Click Clementine's face to start voice conversation
+        </div>
+        <div className="mt-2 text-xs">
+          {isVoiceFlowLoaded ? (
+            <span className="text-green-600">✅ VoiceFlow Ready</span>
+          ) : (
+            <span className="text-orange-600">⏳ Loading VoiceFlow...</span>
+          )}
+        </div>
       </div>
 
       {/* Title and Instructions */}
@@ -570,25 +426,11 @@ function ChatPage() {
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Chat with Clementine</h1>
         <p className="text-gray-600 mb-2">Your AI relationship advisor</p>
         
-        {!isVoiceFlowLoaded ? (
-          <div className="text-sm text-gray-500 space-y-1">
-            <p className="font-medium text-blue-600">Loading voice system... 🔄</p>
-            <p>Preparing your telephone-like conversation experience</p>
-          </div>
-        ) : chatMode === 'voice' ? (
+        {chatMode === 'voice' ? (
           <div className="text-sm text-gray-500 space-y-1">
             <p className="font-medium text-purple-600">Voice Mode Active 🎤</p>
-            {!conversationStarted ? (
-              <>
-                <p>Click anywhere on Clementine's face to start talking</p>
-                <p className="text-xs">Just like a phone conversation - natural and flowing</p>
-              </>
-            ) : (
-              <>
-                <p>Conversation active - speak naturally anytime</p>
-                <p className="text-xs">Clementine can hear you and will respond with voice</p>
-              </>
-            )}
+            <p>Click anywhere on Clementine's face to start talking</p>
+            <p className="text-xs">Pure voice conversation with VoiceFlow</p>
           </div>
         ) : (
           <div className="text-sm text-gray-500 space-y-1">
@@ -598,12 +440,7 @@ function ChatPage() {
         )}
       </div>
 
-      {/* VoiceFlow Integration Zone - This is where the hidden widget will go */}
-      <div id="voiceflow-container" style={{ display: 'none' }}>
-        {/* VoiceFlow widget will be loaded here invisibly */}
-      </div>
-
-      {/* Future Text Chat Area - Only shown in text mode */}
+      {/* Text Chat Area */}
       {chatMode === 'text' && (
         <div className="mt-8 w-full max-w-md bg-white rounded-2xl shadow-xl p-4">
           <div className="text-center text-gray-500 py-8">
@@ -613,6 +450,11 @@ function ChatPage() {
           </div>
         </div>
       )}
+
+      {/* Hidden VoiceFlow Container */}
+      <div id="voiceflow-container" style={{ display: 'none' }}>
+        {/* VoiceFlow widget loads here */}
+      </div>
 
     </div>
   );
