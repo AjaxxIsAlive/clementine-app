@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, User, Mail, Lock } from 'lucide-react';
+import { memoryService } from '../services/memoryService';
 
 function LoginModal({ isVisible, onLogin, onClose }) {
   const [email, setEmail] = useState('');
@@ -26,11 +27,20 @@ function LoginModal({ isVisible, onLogin, onClose }) {
         loginTime: new Date().toISOString()
       };
 
-      // Save to localStorage
+      // Save to localStorage (for compatibility)
       localStorage.setItem('clementine_user_credentials', JSON.stringify(credentials));
       localStorage.setItem('clementine_user_id', userID);
       localStorage.setItem('clementine_user_email', email.trim());
       localStorage.setItem('clementine_user_name', name.trim());
+      
+      // Create Supabase profile and memory
+      try {
+        await memoryService.createUserProfile(credentials);
+        console.log('✅ Supabase profile created successfully');
+      } catch (supabaseError) {
+        console.warn('⚠️ Supabase profile creation failed, continuing with localStorage:', supabaseError);
+        // Continue anyway - app will fall back to localStorage
+      }
       
       console.log('✅ User credentials saved:', credentials);
       
