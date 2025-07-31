@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart } from 'lucide-react';
+import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart, User, Settings, RotateCcw } from 'lucide-react';
+import LoginModal from '../components/LoginModal';
 
 function ChatPage() {
   const [hoveredArea, setHoveredArea] = useState(null);
@@ -8,8 +9,118 @@ function ChatPage() {
   const [chatMode, setChatMode] = useState('voice');
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [isVoiceFlowLoaded, setIsVoiceFlowLoaded] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [memoryData, setMemoryData] = useState({});
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [userCredentials, setUserCredentials] = useState(null);
+  const [currentProject, setCurrentProject] = useState('MEMORY');
   const imageRef = useRef(null);
   const navigate = useNavigate();
+
+  // VoiceFlow Project Configuration - Safe Switching System
+  const getVoiceFlowConfig = () => {
+    const configs = {
+      BASIC: {
+        projectID: process.env.REACT_APP_VF_BASIC_PROJECT_ID || '68829d0cd2b91792a19c12a1',
+        versionID: process.env.REACT_APP_VF_BASIC_VERSION_ID || 'production',
+        hasMemory: false,
+        description: 'Basic VoiceFlow - No Memory'
+      },
+      MEMORY: {
+        projectID: process.env.REACT_APP_VF_MEMORY_PROJECT_ID || '688ab66ce2a73a8945d22dc7',
+        versionID: process.env.REACT_APP_VF_MEMORY_VERSION_ID || '688ab66ce2a73a8945d22dc8',
+        hasMemory: true,
+        description: 'Current Memory Project - Working'
+      },
+      NEW_MEMORY: {
+        projectID: process.env.REACT_APP_VF_NEW_MEMORY_PROJECT_ID || '688acb19383e983b5f35d603',
+        versionID: process.env.REACT_APP_VF_NEW_MEMORY_VERSION_ID || '688acb19383e983b5f35d604',
+        hasMemory: true,
+        description: 'New Memory Project - Advanced'
+      }
+    };
+
+    // Check for temporary override (for safe testing)
+    const tempOverride = localStorage.getItem('temp_project_override');
+    if (tempOverride) {
+      localStorage.removeItem('temp_project_override'); // Remove after use
+      setCurrentProject(tempOverride);
+    }
+    
+    const activeProject = tempOverride || process.env.REACT_APP_VF_ACTIVE_PROJECT || currentProject;
+    const config = configs[activeProject] || configs.MEMORY;
+    
+    console.log(`🔧 Using VoiceFlow Project: ${activeProject}`, config);
+    return { ...config, activeProject };
+  };
+
+  // MEMORY SYSTEM - localStorage keys that match VoiceFlow variables
+  const MEMORY_KEYS = {
+    // Basic info
+    userName: 'clementine_user_name',
+    userAge: 'clementine_user_age',
+    userLocation: 'clementine_user_location',
+    userOccupation: 'clementine_user_occupation',
+    
+    // Relationship status
+    relationshipStatus: 'clementine_relationship_status',
+    partnerName: 'clementine_partner_name',
+    relationshipDuration: 'clementine_relationship_duration',
+    
+    // Goals and challenges
+    relationshipGoals: 'clementine_relationship_goals',
+    currentChallenges: 'clementine_current_challenges',
+    communicationStyle: 'clementine_communication_style',
+    
+    // Conversation context
+    lastTopicDiscussed: 'clementine_last_topic',
+    userMood: 'clementine_user_mood',
+    sessionCount: 'clementine_session_count',
+    lastActiveDate: 'clementine_last_active'
+  };
+
+  // Load memory data from localStorage
+  const loadMemoryData = () => {
+    const data = {};
+    Object.entries(MEMORY_KEYS).forEach(([key, storageKey]) => {
+      const value = localStorage.getItem(storageKey);
+      data[key] = value || '';
+    });
+    
+    // Update session count
+    const currentCount = parseInt(data.sessionCount) || 0;
+    const newCount = currentCount + 1;
+    localStorage.setItem(MEMORY_KEYS.sessionCount, newCount.toString());
+    localStorage.setItem(MEMORY_KEYS.lastActiveDate, new Date().toISOString());
+    
+    data.sessionCount = newCount.toString();
+    data.lastActiveDate = new Date().toISOString();
+    
+    setMemoryData(data);
+    console.log('🧠 Memory loaded:', data);
+    return data;
+  };
+
+  // Save memory data to localStorage
+  const saveMemoryData = (key, value) => {
+    if (MEMORY_KEYS[key]) {
+      localStorage.setItem(MEMORY_KEYS[key], value);
+      setMemoryData(prev => ({ ...prev, [key]: value }));
+      console.log(`💾 Saved ${key}:`, value);
+    }
+  };
+
+  // Clear all memory
+  const clearAllMemory = () => {
+    Object.values(MEMORY_KEYS).forEach(storageKey => {
+      localStorage.removeItem(storageKey);
+    });
+    localStorage.removeItem('clementine_user_id');
+    setMemoryData({});
+    console.log('🧹 All memory cleared');
+    // Reload page to reset everything
+    window.location.reload();
+  };
 
   // Update image size when window resizes or image loads
   useEffect(() => {
@@ -28,8 +139,57 @@ function ChatPage() {
     return () => window.removeEventListener('resize', updateImageSize);
   }, []);
 
-  // Load VoiceFlow widget ONCE
+  // Check for existing login and load memory
   useEffect(() => {
+    const checkAuth = () => {
+      const savedCredentials = localStorage.getItem('clementine_user_credentials');
+      
+      if (savedCredentials) {
+        try {
+          const credentials = JSON.parse(savedCredentials);
+          setUserCredentials(credentials);
+          console.log('✅ Found existing user:', credentials.email);
+          loadMemoryData();
+        } catch (error) {
+          console.log('⚠️ Invalid credentials, showing login');
+          setShowLoginModal(true);
+        }
+      } else {
+        console.log('👋 New user, showing login');
+        setShowLoginModal(true);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Handle successful login
+  const handleLogin = (credentials) => {
+    setUserCredentials(credentials);
+    setShowLoginModal(false);
+    console.log('🎉 User authenticated:', credentials);
+    loadMemoryData();
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('clementine_user_credentials');
+    localStorage.removeItem('clementine_user_id');
+    localStorage.removeItem('clementine_user_email');
+    localStorage.removeItem('clementine_user_name');
+    setUserCredentials(null);
+    setShowLoginModal(true);
+    console.log('👋 User logged out');
+  };
+
+  // Load VoiceFlow widget ONCE with memory pre-population
+  useEffect(() => {
+    // Only load VoiceFlow if user is authenticated
+    if (!userCredentials) {
+      console.log('⏳ Waiting for user authentication...');
+      return;
+    }
+
     // Protection against double loading
     if (window.voiceflowChatLoaded) {
       console.log('✅ VoiceFlow already loaded');
@@ -54,21 +214,110 @@ function ChatPage() {
         v.onload = function() {
           console.log('🔧 VoiceFlow script loaded, initializing...');
           
-          window.voiceflow.chat.load({
-  verify: { projectID: '68829d0cd2b91792a19c12a1' },
-  url: 'https://general-runtime.voiceflow.com',
-  versionID: 'production',
-  userID: 'clementine_user_' + Math.random().toString(36).substr(2, 9),
-  voice: {
-    url: "https://runtime-api.voiceflow.com"
-  },
-  assistant: {
-    persistence: 'localStorage'
-  }
-});
+          // Generate or retrieve persistent userID for conversation memory
+          let persistentUserID = localStorage.getItem('clementine_user_id');
+          
+          if (!persistentUserID) {
+            // Create new unique user ID and save to localStorage
+            persistentUserID = 'clementine_user_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+            localStorage.setItem('clementine_user_id', persistentUserID);
+            console.log('🆔 Created new persistent user ID:', persistentUserID);
+          } else {
+            console.log('🔄 Using existing user ID:', persistentUserID);
+          }
+
+          // Prepare memory data for VoiceFlow pre-population
+          const currentMemory = {};
+          Object.entries(MEMORY_KEYS).forEach(([key, storageKey]) => {
+            const value = localStorage.getItem(storageKey);
+            if (value) {
+              currentMemory[key] = value;
+            }
+          });
+
+          console.log('🧠 Pre-populating VoiceFlow with memory:', currentMemory);
+          console.log('🧠 Memory keys and values:');
+          Object.entries(currentMemory).forEach(([key, value]) => {
+            console.log(`  ${key}: "${value}"`);
+          });
+          console.log('🧠 returning_user:', Object.keys(currentMemory).length > 0);
+          
+          // Get dynamic VoiceFlow configuration
+          const vfConfig = getVoiceFlowConfig();
+          console.log('🔧 Using VoiceFlow configuration:', vfConfig);
+          
+          // Build configuration object
+          const loadConfig = {
+            verify: { projectID: vfConfig.projectID },
+            url: 'https://general-runtime.voiceflow.com',
+            versionID: vfConfig.versionID,
+            userID: userCredentials.userID,
+            voice: {
+              url: "https://runtime-api.voiceflow.com"
+            },
+            assistant: {
+              persistence: 'localStorage'
+            }
+          };
+
+          // Only add memory payload if project supports it and we have memory data
+          if (vfConfig.hasMemory && Object.keys(currentMemory).length > 0) {
+            loadConfig.launch = {
+              event: {
+                type: 'launch',
+                payload: {
+                  user_name: currentMemory.userName || '',
+                  user_email: userCredentials.email || '',
+                  user_age: currentMemory.userAge || '',
+                  session_count: currentMemory.sessionCount || '1',
+                  returning_user: true,
+                  relationship_status: currentMemory.relationshipStatus || '',
+                  partner_name: currentMemory.partnerName || '',
+                  last_active: currentMemory.lastActiveDate || '',
+                  user_location: currentMemory.userLocation || '',
+                  user_occupation: currentMemory.userOccupation || '',
+                  relationship_duration: currentMemory.relationshipDuration || '',
+                  relationship_goals: currentMemory.relationshipGoals || '',
+                  current_challenges: currentMemory.currentChallenges || '',
+                  communication_style: currentMemory.communicationStyle || '',
+                  last_topic_discussed: currentMemory.lastTopicDiscussed || '',
+                  user_mood: currentMemory.userMood || ''
+                }
+              }
+            };
+            console.log('🧠 Enhanced payload with all memory variables');
+          } else if (vfConfig.hasMemory) {
+            // New user on memory-enabled project
+            loadConfig.launch = {
+              event: {
+                type: 'launch',
+                payload: {
+                  user_name: '',
+                  user_email: userCredentials.email || '',
+                  session_count: '1',
+                  returning_user: false
+                }
+              }
+            };
+            console.log('🆕 New user payload for memory project');
+          }
+
+          window.voiceflow.chat.load(loadConfig);
           
           setIsVoiceFlowLoaded(true);
-          console.log('✅ VoiceFlow widget initialized');
+          console.log('✅ VoiceFlow widget initialized with memory');
+          
+          // Log payload data for debugging
+          console.log('📤 Payload sent to VoiceFlow:', {
+            user_name: currentMemory.userName || '',
+            user_email: userCredentials.email || '',
+            user_age: currentMemory.userAge || '',
+            session_count: currentMemory.sessionCount || '1',
+            returning_user: Object.keys(currentMemory).length > 0,
+            relationship_status: currentMemory.relationshipStatus || '',
+            partner_name: currentMemory.partnerName || '',
+            last_active: currentMemory.lastActiveDate || ''
+          });
           
           // Add DOM inspection after initialization
           setTimeout(() => {
@@ -84,7 +333,7 @@ function ChatPage() {
         v.type = "text/javascript"; 
         s.parentNode.insertBefore(v, s);
     })(document, 'script');
-  }, []);
+  }, [userCredentials]);
 
   // Hide VoiceFlow widget completely while preserving functionality
   useEffect(() => {
@@ -297,11 +546,44 @@ function ChatPage() {
     }
   };
 
-  // Manual inspection helper
-  window.inspectVoiceFlow = () => {
-    inspectVoiceFlowDOM();
-    return window.voiceflow;
-  };
+  // Expose global utility functions
+  useEffect(() => {
+    // Manual inspection helper
+    window.inspectVoiceFlow = () => {
+      inspectVoiceFlowDOM();
+      return window.voiceflow;
+    };
+
+    // Memory management functions
+    window.saveClementineMemory = (key, value) => {
+      saveMemoryData(key, value);
+      return `Saved ${key}: ${value}`;
+    };
+
+    window.getClementineMemory = () => {
+      console.log('🧠 Current memory:', memoryData);
+      return memoryData;
+    };
+
+    window.clearClementineMemory = () => {
+      clearAllMemory();
+      return 'All memory cleared. Page will reload.';
+    };
+
+    // Utility function to reset user identity (for testing)
+    window.resetClementineUser = () => {
+      localStorage.removeItem('clementine_user_id');
+      console.log('🔄 User ID reset - refresh page to create new identity');
+      return 'User ID cleared. Refresh the page to get a new identity.';
+    };
+
+    // Utility function to check current user ID
+    window.getClementineUserID = () => {
+      const userID = localStorage.getItem('clementine_user_id');
+      console.log('👤 Current user ID:', userID);
+      return userID;
+    };
+  }, [memoryData]);
 
   const handleAreaEnter = (area) => {
     setHoveredArea(area);
@@ -343,12 +625,75 @@ function ChatPage() {
         </button>
 
         <button
-          onClick={() => {/* Email functionality */}}
+          onClick={() => setShowDebugPanel(!showDebugPanel)}
           className="p-3 bg-white bg-opacity-80 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 text-gray-600 hover:text-gray-800"
         >
-          <Mail className="w-5 h-5" />
+          <Settings className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={clearAllMemory}
+          className="p-3 bg-red-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:bg-red-600"
+        >
+          <RotateCcw className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={handleLogout}
+          className="p-3 bg-gray-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:bg-gray-600"
+        >
+          <User className="w-5 h-5" />
         </button>
       </div>
+
+      {/* Debug Panel */}
+      {showDebugPanel && (
+        <div className="absolute top-20 right-6 bg-white rounded-lg shadow-xl p-4 max-w-sm z-50">
+          <h3 className="font-bold mb-2 text-sm">VoiceFlow Configuration</h3>
+          <div className="mb-4 p-2 bg-gray-50 rounded text-xs">
+            <div><strong>Project:</strong> {getVoiceFlowConfig().activeProject}</div>
+            <div><strong>ID:</strong> {getVoiceFlowConfig().projectID}</div>
+            <div><strong>Version:</strong> {getVoiceFlowConfig().versionID}</div>
+            <div><strong>Memory:</strong> {getVoiceFlowConfig().hasMemory ? '✅' : '❌'}</div>
+          </div>
+          
+          <h4 className="font-bold mb-2 text-sm">Switch Project (⚠️ Safe Mode)</h4>
+          <div className="space-y-2 mb-4">
+            {['BASIC', 'MEMORY', 'NEW_MEMORY'].map(project => (
+              <button
+                key={project}
+                onClick={() => {
+                  if (window.confirm(`Switch to ${project} project? This will reload the page to prevent conflicts.`)) {
+                    localStorage.setItem('temp_project_override', project);
+                    window.location.reload();
+                  }
+                }}
+                className={`w-full text-left p-2 text-xs rounded ${
+                  getVoiceFlowConfig().activeProject === project 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-gray-100 hover:bg-gray-200'
+                }`}
+              >
+                <div className="font-medium">{project}</div>
+                <div className="text-xs opacity-75">{
+                  project === 'BASIC' ? 'No Memory' :
+                  project === 'MEMORY' ? 'Current Working' :
+                  'New Advanced'
+                }</div>
+              </button>
+            ))}
+          </div>
+
+          <h4 className="font-bold mb-2 text-sm">Memory Status</h4>
+          <div className="text-xs space-y-1 max-h-40 overflow-y-auto">
+            <div><strong>Sessions:</strong> {memoryData.sessionCount || '0'}</div>
+            <div><strong>User ID:</strong> {localStorage.getItem('clementine_user_id')?.substring(0, 20)}...</div>
+            {Object.entries(memoryData).map(([key, value]) => (
+              value && <div key={key}><strong>{key}:</strong> {value.substring(0, 30)}{value.length > 30 ? '...' : ''}</div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main Clementine Face */}
       <div className="relative max-w-sm mx-auto mb-8">
@@ -402,7 +747,7 @@ function ChatPage() {
                 <div className="flex items-center justify-center h-full">
                   <div className="bg-pink-600 bg-opacity-90 text-white px-4 py-2 rounded-full text-lg flex items-center gap-2 animate-pulse">
                     <Heart className="w-5 h-5" />
-                    Start Talking
+                    {memoryData.userName ? `Welcome back, ${memoryData.userName.split(' ')[0]}!` : 'Start Talking'}
                   </div>
                 </div>
               )}
@@ -416,11 +761,16 @@ function ChatPage() {
         <div className="text-xs text-gray-500">
           Click Clementine's face to start voice conversation
         </div>
-        <div className="mt-2 text-xs">
+        <div className="mt-2 text-xs space-x-4">
           {isVoiceFlowLoaded ? (
             <span className="text-green-600">✅ VoiceFlow Ready</span>
           ) : (
             <span className="text-orange-600">⏳ Loading VoiceFlow...</span>
+          )}
+          {Object.keys(memoryData).some(key => memoryData[key]) ? (
+            <span className="text-purple-600">🧠 Memory Active</span>
+          ) : (
+            <span className="text-gray-400">🧠 New User</span>
           )}
         </div>
       </div>
@@ -434,7 +784,10 @@ function ChatPage() {
           <div className="text-sm text-gray-500 space-y-1">
             <p className="font-medium text-purple-600">Voice Mode Active 🎤</p>
             <p>Click anywhere on Clementine's face to start talking</p>
-            <p className="text-xs">Pure voice conversation with VoiceFlow</p>
+            <p className="text-xs">Pure voice conversation with memory persistence</p>
+            {memoryData.sessionCount && (
+              <p className="text-xs text-purple-500">Session #{memoryData.sessionCount}</p>
+            )}
           </div>
         ) : (
           <div className="text-sm text-gray-500 space-y-1">
@@ -459,6 +812,13 @@ function ChatPage() {
       <div id="voiceflow-container" style={{ display: 'none' }}>
         {/* VoiceFlow widget loads here */}
       </div>
+
+      {/* Login Modal */}
+      <LoginModal
+        isVisible={showLoginModal}
+        onLogin={handleLogin}
+        onClose={() => setShowLoginModal(false)}
+      />
 
     </div>
   );
