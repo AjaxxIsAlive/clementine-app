@@ -21,9 +21,9 @@ class AuthService {
         throw new Error('Supabase not available');
       }
 
-      // Check if user exists in user_profiles - Updated to use first_name
+      // Check if user exists in profiles - Updated to use first_name
       const { data: existingUser, error: fetchError } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .select('*')
         .or(`email.eq.${emailOrUsername},first_name.eq.${emailOrUsername}`)
         .single();
@@ -37,7 +37,7 @@ class AuthService {
         const newSessionId = this.generateSessionId(existingUser.id);
         
         const { data: updatedUser, error: updateError } = await supabase
-          .from('user_profiles')
+          .from('profiles')
           .update({ 
             session_id: newSessionId,
             // Use existing schema columns
@@ -58,7 +58,7 @@ class AuthService {
         const newSessionId = this.generateSessionId(emailOrUsername);
         
         const { data: newUser, error: createError } = await supabase
-          .from('user_profiles')
+          .from('profiles')
           .insert({
             email: emailOrUsername.includes('@') ? emailOrUsername : null,
             // Use first_name instead of name
@@ -131,7 +131,7 @@ class AuthService {
       // Verify user still exists in database
       if (supabase) {
         const { data: user, error } = await supabase
-          .from('user_profiles')
+          .from('profiles')
           .select('*')
           .eq('id', userData.id)
           .single();
@@ -190,7 +190,7 @@ class AuthService {
 
     try {
       const { data, error } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .update({
           ...updates,
           updated_at: new Date().toISOString()
