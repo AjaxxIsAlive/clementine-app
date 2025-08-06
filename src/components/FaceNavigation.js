@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Eye, Brain, Flag } from 'lucide-react';
+import { MessageSquare, Eye, Brain, Flag, User } from 'lucide-react';
 
-function FaceNavigation() {
+function FaceNavigation({ onLoginClick }) {
   const [hoveredArea, setHoveredArea] = useState(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const imageRef = useRef(null);
@@ -297,6 +297,20 @@ function FaceNavigation() {
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Meet Clementine</h1>
         <p className="text-gray-600">Your AI relationship advisor</p>
         <p className="text-sm text-gray-500 mt-2">Touch her face to explore</p>
+        
+        {/* Login Button */}
+        <div className="mt-6">
+          <button
+            onClick={onLoginClick}
+            className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full font-medium hover:from-pink-600 hover:to-purple-700 transition-all duration-200 flex items-center gap-2 mx-auto shadow-lg hover:shadow-xl"
+          >
+            <User size={20} />
+            Login to Start Chatting
+          </button>
+          <p className="text-xs text-gray-500 mt-2">
+            Login to save your conversations and memories
+          </p>
+        </div>
       </div>
     </div>
   );

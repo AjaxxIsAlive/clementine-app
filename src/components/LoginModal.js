@@ -1,58 +1,71 @@
 import React, { useState } from 'react';
-import { X, User, Mail, Lock } from 'lucide-react';
-import { memoryService } from '../services/memoryService';
+import { X, User, Mail } from 'lucide-react';
+import authService from '../services/authService';
 
 function LoginModal({ isVisible, onLogin, onClose }) {
-  const [email, setEmail] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!email.trim() || !name.trim()) {
-      alert('Please fill in both email and name');
+    if (!emailOrUsername.trim()) {
+      setError('Please enter your email or username');
       return;
     }
 
     setIsLoading(true);
-    
-    try {
-      // Create user credentials
-      const userID = 'clementine_user_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
-      const credentials = {
-        email: email.trim(),
-        name: name.trim(),
-        userID: userID,
-        loginTime: new Date().toISOString()
-      };
+    setError('');
 
-      // Save to localStorage (for compatibility)
-      localStorage.setItem('clementine_user_credentials', JSON.stringify(credentials));
-      localStorage.setItem('clementine_user_id', userID);
-      localStorage.setItem('clementine_user_email', email.trim());
-      localStorage.setItem('clementine_user_name', name.trim());
+    try {
+      const result = await authService.login(emailOrUsername.trim(), name.trim() || null);
       
-      // Create Supabase profile and memory
-      try {
-        await memoryService.createUserProfile(credentials);
-        console.log('✅ Supabase profile created successfully');
-      } catch (supabaseError) {
-        console.warn('⚠️ Supabase profile creation failed, continuing with localStorage:', supabaseError);
-        // Continue anyway - app will fall back to localStorage
+      if (result.success) {
+        console.log('✅ Login successful:', result.user);
+        
+        // Call the onLogin callback with user data
+        onLogin({
+          user: result.user,
+          sessionId: result.sessionId,
+          voiceFlowUserId: authService.getVoiceFlowUserId()
+        });
+        
+        // Reset form
+        setEmailOrUsername('');
+        setName('');
+        setError('');
+        onClose();
+      } else {
+        setError(result.error || 'Login failed');
       }
-      
-      console.log('✅ User credentials saved:', credentials);
-      
-      // Call the onLogin callback
-      onLogin(credentials);
-      
-      // Reset form
-      setEmail('');
-      setName('');
     } catch (error) {
       console.error('❌ Login error:', error);
-      alert('Login failed. Please try again.');
+      setError('Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuickLogin = async (guestName) => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const result = await authService.login(guestName, guestName);
+      if (result.success) {
+        onLogin({
+          user: result.user,
+          sessionId: result.sessionId,
+          voiceFlowUserId: authService.getVoiceFlowUserId()
+        });
+        onClose();
+      } else {
+        setError(result.error || 'Login failed');
+      }
+    } catch (error) {
+      setError('Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -76,91 +89,87 @@ function LoginModal({ isVisible, onLogin, onClose }) {
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="text-center mb-6">
-            <p className="text-gray-600">
-              To provide personalized advice and remember our conversations, 
-              please share your basic information.
-            </p>
-          </div>
-
-          {/* Name Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Your Name
+              Email or Username
             </label>
             <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                value={emailOrUsername}
+                onChange={(e) => setEmailOrUsername(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                placeholder="Enter your email or username"
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Display Name (optional)
+            </label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                placeholder="Enter your first name"
-                required
+                placeholder="How should I call you?"
+                disabled={isLoading}
               />
             </div>
           </div>
 
-          {/* Email Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                placeholder="your.email@example.com"
-                required
-              />
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              {error}
             </div>
-          </div>
+          )}
 
-          {/* Privacy Notice */}
-          <div className="bg-pink-50 p-4 rounded-lg">
-            <div className="flex items-start space-x-2">
-              <Lock className="w-4 h-4 text-pink-600 mt-0.5 flex-shrink-0" />
-              <div className="text-xs text-pink-800">
-                <strong>Privacy Promise:</strong> Your information is stored locally on your device 
-                and used only to personalize your experience with Clementine. We never share or sell your data.
-              </div>
-            </div>
-          </div>
-
-          {/* Submit Button */}
           <button
             type="submit"
-            disabled={isLoading || !email.trim() || !name.trim()}
-            className="w-full bg-pink-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={isLoading}
+            className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3 rounded-lg font-medium hover:from-pink-600 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? (
-              <div className="flex items-center justify-center space-x-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Setting up your profile...</span>
-              </div>
-            ) : (
-              'Start Talking with Clementine'
-            )}
+            {isLoading ? 'Logging in...' : 'Login / Create Account'}
           </button>
         </form>
 
-        {/* Footer */}
-        <div className="px-6 pb-6 text-center">
-          <p className="text-xs text-gray-500">
-            By continuing, you agree to have personalized conversations with Clementine 
-            and allow local storage of your preferences.
-          </p>
+        {/* Quick Login Options */}
+        <div className="px-6 pb-6 border-t border-gray-200">
+          <p className="text-sm text-gray-600 mb-3 mt-4">Or try a quick demo:</p>
+          <div className="flex space-x-3">
+            <button
+              onClick={() => handleQuickLogin('Demo User')}
+              disabled={isLoading}
+              className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              Demo User
+            </button>
+            <button
+              onClick={() => handleQuickLogin('Guest')}
+              disabled={isLoading}
+              className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              Guest
+            </button>
+          </div>
+          
+          <div className="mt-4 text-xs text-gray-500 text-center">
+            <p><strong>No password required!</strong> Simple login for demo purposes.</p>
+            <p>Your conversations and memories will be saved.</p>
+          </div>
         </div>
       </div>
     </div>

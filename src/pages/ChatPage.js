@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart } from 'lucide-react';
+import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart, LogOut, User } from 'lucide-react';
 
-function ChatPage() {
+function ChatPage({ user, sessionId, voiceFlowUserId, onLogout }) {
   const [hoveredArea, setHoveredArea] = useState(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [chatMode, setChatMode] = useState('voice');
@@ -29,9 +29,27 @@ function ChatPage() {
   }, []);
 
   // Load VoiceFlow widget ONCE
-  useEffect(() => {
-    // Protection against double loading
-    if (window.voiceflowChatLoaded) {
+useEffect(() => {
+  // ADD THIS DEBUGGING CODE HERE ⬇️
+  console.log('🔍 DEBUGGING SESSION DATA:');
+  console.log('📝 Props received:');
+  console.log('  - user:', user);
+  console.log('  - sessionId:', sessionId);
+  console.log('  - voiceFlowUserId:', voiceFlowUserId);
+  
+  console.log('📝 VoiceFlow will receive:');
+  console.log('  - userID:', voiceFlowUserId || sessionId || 'guest');
+  console.log('  - sessionID:', sessionId || Date.now().toString());
+  
+  // Also check localStorage:
+  const stored = localStorage.getItem('clementine_user');
+  if (stored) {
+    console.log('📝 localStorage data:', JSON.parse(stored));
+  }
+  // END OF DEBUGGING CODE ⬆️
+
+  // Protection against double loading
+  if (window.voiceflowChatLoaded) {
       console.log('✅ VoiceFlow already loaded');
       setIsVoiceFlowLoaded(true);
       return;
@@ -55,13 +73,17 @@ function ChatPage() {
           console.log('🔧 VoiceFlow script loaded, initializing...');
           
           window.voiceflow.chat.load({
-            verify: { projectID: '68829d0cd2b91792a19c12a1' },
-            url: 'https://general-runtime.voiceflow.com',
-            versionID: 'production',
-            voice: {
-              url: "https://runtime-api.voiceflow.com"
-            }
-          });
+  verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID || '688e7f3dc335764d872aa2ee' },
+  url: 'https://general-runtime.voiceflow.com',
+  versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID || '688e7f3dc335764d872aa2ef',
+  voice: {
+    url: "https://runtime-api.voiceflow.com"
+  },
+  userID: sessionId || 'guest',
+  variables: {
+    session_id: sessionId || 'guest'
+  }
+});
           
           setIsVoiceFlowLoaded(true);
           console.log('✅ VoiceFlow widget initialized');
@@ -317,6 +339,26 @@ function ChatPage() {
       >
         <ArrowLeft className="w-5 h-5" />
       </button>
+
+      {/* User Info Header */}
+      {user && (
+        <div className="absolute top-6 left-1/2 transform -translate-x-1/2 bg-white bg-opacity-90 rounded-full px-4 py-2 shadow-lg flex items-center gap-3">
+          <div className="w-8 h-8 bg-pink-100 rounded-full flex items-center justify-center">
+            <User className="w-4 h-4 text-pink-600" />
+          </div>
+          <div className="text-sm">
+            <div className="font-medium text-gray-800">{user.first_name || user.email || user.username}</div>
+            <div className="text-xs text-gray-500">Connected to VoiceFlow</div>
+          </div>
+          <button
+            onClick={onLogout}
+            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+      )}
 
       {/* Chat Controls */}
       <div className="absolute top-6 right-6 flex space-x-3">

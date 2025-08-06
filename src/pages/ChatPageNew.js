@@ -4,6 +4,7 @@ import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart, User, Settings
 import LoginModal from '../components/LoginModal';
 import UserManager from '../components/UserManager';
 import { memoryService } from '../services/memoryService';
+import supabaseApiTester from '../services/supabaseApiTester';
 
 function ChatPage() {
   const [hoveredArea, setHoveredArea] = useState(null);
@@ -42,6 +43,12 @@ function ChatPage() {
         hasMemory: true,
         description: 'New Memory Project - Advanced'
       },
+      SUPABASE_CONNECTED: {
+        projectID: '688c14289efd1e7c4a05798d',
+        versionID: '688c14289efd1e7c4a05798e',
+        hasMemory: true,
+        description: 'VoiceFlow AI Built - Supabase Connected'
+      },
       PERSISTENCE: {
         projectID: '68829d0cd2b91792a19c12a1',
         versionID: '68829d0cd2b91792a19c12a2',
@@ -57,9 +64,9 @@ function ChatPage() {
       setCurrentProject(tempOverride);
     }
     
-    // USE NEWEST PROJECT with properly wired variables
-    const activeProject = tempOverride || 'NEW_MEMORY'; // Use NEW_MEMORY project with correct variable wiring
-    const config = configs[activeProject] || configs.BASIC;
+        // USE SUPABASE_CONNECTED PROJECT with user-provided IDs
+    const activeProject = tempOverride || 'SUPABASE_CONNECTED'; // Use new VoiceFlow AI built project
+    const config = configs[activeProject] || configs.SUPABASE_CONNECTED;
     
     console.log(`🔧 Using VoiceFlow Project: ${activeProject}`, config);
     return { ...config, activeProject };
@@ -96,34 +103,39 @@ function ChatPage() {
       const userID = localStorage.getItem('clementine_user_id');
       if (!userID) return {};
 
-      // Try to load from Supabase first, fallback to localStorage
-      console.log('🔄 Loading memory from Supabase...');
-      
-      const supabaseMemory = await memoryService.getUserMemory(userID);
-      if (supabaseMemory) {
-        const formattedMemory = memoryService.formatMemoryForLocalStorage(supabaseMemory);
-        console.log('🧠 Memory loaded from Supabase:', formattedMemory);
+      const userEmail = localStorage.getItem('clementine_user_email') || '';
+      const userName = localStorage.getItem('clementine_user_name') || '';
+
+      // Try new VoiceFlow AI Supabase schema
+      try {
+        console.log('🔄 Using VoiceFlow AI Supabase schema');
         
-        // Update localStorage with Supabase data
-        Object.entries(MEMORY_KEYS).forEach(([key, storageKey]) => {
-          if (formattedMemory[key]) {
-            localStorage.setItem(storageKey, formattedMemory[key]);
+        // First upsert user to ensure they exist and increment session count
+        const userData = await memoryService.upsertUser(userID, userEmail, userName);
+        
+        if (userData) {
+          // Get full user data including profile
+          const fullUserData = await memoryService.getUserData(userID);
+          
+          if (fullUserData) {
+            // Convert to local format for compatibility
+            const formattedMemory = {
+              userName: fullUserData.user_profiles?.name || userName,
+              userAge: fullUserData.user_profiles?.age || '',
+              userOccupation: fullUserData.user_profiles?.occupation || '',
+              relationshipStatus: fullUserData.user_profiles?.relationship_status || 'single',
+              sessionCount: userData.session_count.toString(),
+              lastActiveDate: fullUserData.last_session || new Date().toISOString(),
+              returning_user: userData.returning_user
+            };
+            
+            setMemoryData(formattedMemory);
+            console.log('🧠 Memory loaded from VoiceFlow AI Supabase schema:', formattedMemory);
+            return formattedMemory;
           }
-        });
-        
-        setMemoryData(formattedMemory);
-        
-        // Increment session count
-        try {
-          await memoryService.incrementSessionCount(userID);
-          const newCount = (parseInt(formattedMemory.sessionCount) || 0) + 1;
-          localStorage.setItem(MEMORY_KEYS.sessionCount, newCount.toString());
-          formattedMemory.sessionCount = newCount.toString();
-        } catch (error) {
-          console.warn('⚠️ Session increment failed:', error);
         }
-        
-        return formattedMemory;
+      } catch (supabaseError) {
+        console.warn('⚠️ VoiceFlow AI Supabase schema failed, falling back to localStorage:', supabaseError);
       }
 
       // Fallback to localStorage only
@@ -142,22 +154,10 @@ function ChatPage() {
       
       data.sessionCount = newCount.toString();
       data.lastActiveDate = new Date().toISOString();
+      data.returning_user = newCount > 1;
       
       setMemoryData(data);
-      
-      // Try to sync localStorage data to Supabase
-      if (userID && Object.keys(data).some(key => data[key])) {
-        console.log('🔄 Syncing localStorage data to Supabase...');
-        try {
-          const supabaseFormat = memoryService.formatMemoryForSupabase(data);
-          await memoryService.updateUserMemory(userID, supabaseFormat);
-          console.log('✅ localStorage data synced to Supabase');
-        } catch (syncError) {
-          console.warn('⚠️ Could not sync to Supabase:', syncError);
-        }
-      }
-      
-      console.log('🧠 Memory loaded from localStorage:', data);
+      console.log('🧠 Memory loaded from localStorage (fallback):', data);
       return data;
       
     } catch (error) {
@@ -898,6 +898,20 @@ function ChatPage() {
               className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs"
             >
               Force NEW_MEMORY
+            </button>
+          </div>
+
+          <div className="mb-4 p-2 bg-blue-50 rounded text-xs">
+            <strong>🧪 API Tests:</strong>
+            <button 
+              onClick={async () => {
+                console.log('🚀 Running Supabase API test...');
+                const testResult = await supabaseApiTester.runFullTest();
+                alert(testResult ? '✅ All tests passed!' : '❌ Tests failed - check console');
+              }}
+              className="ml-2 px-2 py-1 bg-green-500 text-white rounded text-xs"
+            >
+              Test Supabase APIs
             </button>
           </div>
 
