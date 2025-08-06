@@ -102,7 +102,7 @@ useEffect(() => {
         v.type = "text/javascript"; 
         s.parentNode.insertBefore(v, s);
     })(document, 'script');
-  }, []);
+  }, [user, sessionId, voiceFlowUserId]);
 
   // Hide VoiceFlow widget completely while preserving functionality
   useEffect(() => {
