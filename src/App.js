@@ -12,6 +12,7 @@ import TestPage from './pages/TestPage';
 import ChatPageTest from './pages/ChatPageTest';
 import LoginModal from './components/LoginModal';
 import authService from './services/authService';
+import { supabase } from './supabaseClient';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -19,6 +20,21 @@ function App() {
   const [voiceFlowUserId, setVoiceFlowUserId] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [session, setSession] = useState(null);
+
+useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
+  });
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
 
   // Check for existing login on app start
   useEffect(() => {

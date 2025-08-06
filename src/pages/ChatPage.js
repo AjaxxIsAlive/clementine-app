@@ -73,9 +73,9 @@ useEffect(() => {
           console.log('🔧 VoiceFlow script loaded, initializing...');
           
           window.voiceflow.chat.load({
-  verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID || '688e7f3dc335764d872aa2ee' },
+  verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
   url: 'https://general-runtime.voiceflow.com',
-  versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID || '688e7f3dc335764d872aa2ef',
+  versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
   voice: {
     url: "https://runtime-api.voiceflow.com"
   },
