@@ -82,8 +82,10 @@ useEffect(() => {
   },
   userID: voiceflowUserID, // This is correct
   variables: {
-    session_id: sessionId || 'guest' // Restore this line
-  }
+  session_id: sessionId || 'guest',
+  userName: user ? user.first_name : 'Guest',
+  userEmail: user ? user.email : ''
+}
 });
           
           setIsVoiceFlowLoaded(true);
