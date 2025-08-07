@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+console.log("--- VERSION 2 ---");
 import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart, LogOut, User } from 'lucide-react';
 
