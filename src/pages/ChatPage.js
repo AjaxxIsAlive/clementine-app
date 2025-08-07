@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+console.log("--- FINAL DEPLOYMENT TEST ---");
 import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart, LogOut, User } from 'lucide-react';
 
@@ -65,6 +66,7 @@ useEffect(() => {
 
     console.log('🔧 Loading VoiceFlow widget...');
     window.voiceflowChatLoaded = true;
+    const voiceflowUserID = user ? user.id : sessionId || 'guest';
     
     // Official VoiceFlow script
     (function(d, t) {
@@ -79,7 +81,7 @@ useEffect(() => {
   voice: {
     url: "https://runtime-api.voiceflow.com"
   },
-  userID: user ? user.id : 'guest',
+  userID: voiceflowUserID,
   variables: {
     session_id: sessionId || 'guest'
   }
