@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-console.log("--- FINAL DEPLOYMENT TEST ---");
 import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart, LogOut, User } from 'lucide-react';
 
