@@ -35,7 +35,7 @@ useEffect(() => {
 
   return () => subscription.unsubscribe();
 }, []);
-console.log('Current Supabase session:', session);
+console.log('🔍 DEBUGGING SESSION DATA V2:');
 
 
   // Check for existing login on app start
