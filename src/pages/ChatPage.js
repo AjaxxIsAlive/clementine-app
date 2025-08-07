@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-const THIS_IS_A_TEST_TO_FORCE_A_BUILD_FAILURE =;
 import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Volume2, VolumeX, Mail, ArrowLeft, Heart, LogOut, User } from 'lucide-react';
 
@@ -30,44 +29,10 @@ function ChatPage({ user, sessionId, voiceFlowUserId, onLogout }) {
   }, []);
 
   // Load VoiceFlow widget ONCE
-useEffect(() => {
-  // ADD THIS DEBUGGING CODE HERE ⬇️
-  console.log('🔍 DEBUGGING SESSION DATA:');
-  console.log('📝 Props received:');
-  console.log('  - user:', user);
-  console.log('  - sessionId:', sessionId);
-  console.log('  - voiceFlowUserId:', voiceFlowUserId);
-  
-  console.log('📝 VoiceFlow will receive:');
-  console.log('  - userID:', voiceFlowUserId || sessionId || 'guest');
-  console.log('  - sessionID:', sessionId || Date.now().toString());
-  
-  // Also check localStorage:
-  const stored = localStorage.getItem('clementine_user');
-  if (stored) {
-    console.log('📝 localStorage data:', JSON.parse(stored));
-  }
-  // END OF DEBUGGING CODE ⬆️
-
-  // Protection against double loading
-  if (window.voiceflowChatLoaded) {
-      console.log('✅ VoiceFlow already loaded');
-      setIsVoiceFlowLoaded(true);
-      return;
-    }
-
-    // Check if script already exists
-    if (document.querySelector('script[src*="voiceflow"]')) {
-      console.log('✅ VoiceFlow script already exists');
-      window.voiceflowChatLoaded = true;
-      setIsVoiceFlowLoaded(true);
-      return;
-    }
-
-    console.log('🔧 Loading VoiceFlow widget...');
-    window.voiceflowChatLoaded = true;
+  useEffect(() => {
+    // This defines a clean, URL-safe ID for the Voiceflow session
     const voiceflowUserID = user ? user.id : sessionId || 'guest';
-    
+
     // Official VoiceFlow script
     (function(d, t) {
         var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
@@ -75,19 +40,19 @@ useEffect(() => {
           console.log('🔧 VoiceFlow script loaded, initializing...');
           
           window.voiceflow.chat.load({
-  verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
-  url: 'https://general-runtime.voiceflow.com',
-  versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
-  voice: {
-    url: "https://runtime-api.voiceflow.com"
-  },
-  userID: voiceflowUserID, // This is correct
-  variables: {
-  session_id: sessionId || 'guest',
-  userName: user ? user.first_name : 'Guest',
-  userEmail: user ? user.email : ''
-}
-});
+            verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
+            url: 'https://general-runtime.voiceflow.com',
+            versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
+            voice: {
+              url: "https://runtime-api.voiceflow.com"
+            },
+            userID: voiceflowUserID,
+            variables: {
+              session_id: sessionId || 'guest',
+              userName: user ? user.first_name : 'Guest',
+              userEmail: user ? user.email : ''
+            }
+          });
           
           setIsVoiceFlowLoaded(true);
           console.log('✅ VoiceFlow widget initialized');
