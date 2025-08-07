@@ -80,9 +80,9 @@ useEffect(() => {
   voice: {
     url: "https://runtime-api.voiceflow.com"
   },
-  userID: voiceflowUserID,
+  userID: voiceflowUserID, // This is correct
   variables: {
-    session_id: sessionId || 'guest'
+    session_id: sessionId || 'guest' // Restore this line
   }
 });
           
