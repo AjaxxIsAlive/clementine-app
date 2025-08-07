@@ -79,7 +79,7 @@ useEffect(() => {
   voice: {
     url: "https://runtime-api.voiceflow.com"
   },
-  userID: sessionId || 'guest',
+  userID: user ? user.id : 'guest',
   variables: {
     session_id: sessionId || 'guest'
   }
