@@ -30,24 +30,8 @@ function ChatPage({ user, sessionId, voiceFlowUserId, onLogout }) {
 
   // Load VoiceFlow widget ONCE
 useEffect(() => {
-  // Do not run this code until the user object is available
-if (!user) {
-  return; 
-}
-  const voiceflowUserID = user ? user.id : sessionId || 'guest';
+  if (!user) return; // wait for auth
 
-  (function(d, t) {
-      var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
-      v.onload = function () {
-  // 1) Load the SDK (no user/variables here)
-  window.voiceflow.chat.load({
-    verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
-    url: 'https://general-runtime.voiceflow.com',
-    versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
-    voice: { url: 'https://runtime-api.voiceflow.com' }
-  });
-
-  // 2) Immediately open with a stable userID and session variables
   const vfUserID = user?.id || sessionId || 'guest';
   const vfVars = {
     session_id: sessionId || 'guest',
@@ -56,22 +40,33 @@ if (!user) {
     supabase_user_id: user?.id || ''
   };
 
-  window.voiceflow.chat.open({
-    userID: vfUserID,
-    session: {
-      restart: true,           // ensures first turn uses these variables
-      variables: vfVars
-    }
-  });
-};
-        });
-        setIsVoiceFlowLoaded(true);
-      }
-      v.src = "https://cdn.voiceflow.com/widget-next/bundle.mjs"; 
-      v.type = "text/javascript"; 
-      s.parentNode.insertBefore(v, s);
+  (function (d, t) {
+    const v = d.createElement(t);
+    const s = d.getElementsByTagName(t)[0];
+
+    v.onload = function () {
+      // 1) Load SDK (no variables here)
+      window.voiceflow.chat.load({
+        verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
+        url: 'https://general-runtime.voiceflow.com',
+        versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
+        voice: { url: 'https://runtime-api.voiceflow.com' }
+      });
+
+      // 2) Open with stable user + session variables
+      window.voiceflow.chat.open({
+        userID: vfUserID,
+        session: { restart: true, variables: vfVars }
+      });
+
+      setIsVoiceFlowLoaded(true);
+    };
+
+    v.src = 'https://cdn.voiceflow.com/widget-next/bundle.mjs';
+    v.type = 'text/javascript';
+    s.parentNode.insertBefore(v, s);
   })(document, 'script');
-}, [user, sessionId, voiceFlowUserId]);
+}, [user, sessionId]);
 
   // Hide VoiceFlow widget completely while preserving functionality
 // TEMP: hide-widget CSS disabled during deploy (was causing unterminated template string)
