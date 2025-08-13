@@ -53,8 +53,7 @@ function NativeVoiceFlowChat() {
         // Auto-open the chat
         setTimeout(() => {
           if (window.voiceflow.chat.open) {
-            window.voiceflow.chat.open();
-          }
+                  }
         }, 1000);
       }
     };

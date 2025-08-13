@@ -637,8 +637,7 @@ function ChatPage() {
       
       // Method 2: Try opening chat first
       console.log('🔄 Opening VoiceFlow chat...');
-      window.voiceflow.chat.open();
-      
+         
       // Then try to find voice button after delay
       setTimeout(() => {
         if (window.voiceflow.chat._shadowRoot) {
