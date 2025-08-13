@@ -14,13 +14,13 @@ function ChatPage({ user, sessionId, voiceFlowUserId, onLogout }) {
   // Update image size when window resizes or image loads
   useEffect(() => {
     const updateImageSize = () => {
-      if (imageRef.current) {
-        setTimeout(() => {
-          const rect = imageRef.current.getBoundingClientRect();
-          setImageSize({ width: rect.width, height: rect.height });
-        }, 50);
-      }
-    };
+  if (!imageRef.current) return;
+  setTimeout(() => {
+    if (!imageRef.current) return; // ← extra guard fixes the null crash
+    const rect = imageRef.current.getBoundingClientRect();
+    setImageSize({ width: rect.width, height: rect.height });
+  }, 50);
+};
 
     updateImageSize();
     window.addEventListener('resize', updateImageSize);
