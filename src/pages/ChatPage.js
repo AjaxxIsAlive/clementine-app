@@ -45,23 +45,25 @@ useEffect(() => {
     const s = d.getElementsByTagName(t)[0];
 
     v.onload = function () {
-      // 1) Load SDK (no variables here)
+  // Wait for the widget to finish loading, then open with variables
+  Promise
+    .resolve(
       window.voiceflow.chat.load({
         verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
         url: 'https://general-runtime.voiceflow.com',
         versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
         voice: { url: 'https://runtime-api.voiceflow.com' }
-      });
-
-      // 2) Open with stable user + session variables
+      })
+    )
+    .then(() => {
       console.log('VF OPEN INIT >>', { vfUserID, vfVars });
       window.voiceflow.chat.open({
         userID: vfUserID,
         session: { restart: true, variables: vfVars }
       });
-
       setIsVoiceFlowLoaded(true);
-    };
+    });
+};
 
     v.src = 'https://cdn.voiceflow.com/widget-next/bundle.mjs';
     v.type = 'text/javascript';
