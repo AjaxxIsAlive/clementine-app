@@ -33,7 +33,7 @@ function ChatPage({ user, sessionId, voiceFlowUserId, onLogout }) {
     // This defines a clean, URL-safe ID for the Voiceflow session
     const voiceflowUserID = user ? user.id : sessionId || 'guest';
 
-    // Official VoiceFlow script
+    // Official VoiceFlow script - Final Version
     (function(d, t) {
         var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
         v.onload = function() {
