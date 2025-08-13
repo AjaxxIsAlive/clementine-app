@@ -30,22 +30,15 @@ function ChatPage({ user, sessionId, voiceFlowUserId, onLogout }) {
 
   // Load VoiceFlow widget ONCE
   useEffect(() => {
-    // This defines a clean, URL-safe ID for the Voiceflow session
     const voiceflowUserID = user ? user.id : sessionId || 'guest';
 
-    // Official VoiceFlow script - Final Version
     (function(d, t) {
         var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
         v.onload = function() {
-          console.log('🔧 VoiceFlow script loaded, initializing...');
-          
           window.voiceflow.chat.load({
             verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
             url: 'https://general-runtime.voiceflow.com',
             versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
-            voice: {
-              url: "https://runtime-api.voiceflow.com"
-            },
             userID: voiceflowUserID,
             variables: {
               session_id: sessionId || 'guest',
@@ -53,25 +46,13 @@ function ChatPage({ user, sessionId, voiceFlowUserId, onLogout }) {
               userEmail: user ? user.email : ''
             }
           });
-          
           setIsVoiceFlowLoaded(true);
-          console.log('✅ VoiceFlow widget initialized');
-          
-          // Add DOM inspection after initialization
-          setTimeout(() => {
-            inspectVoiceFlowDOM();
-          }, 3000);
         }
-        v.onerror = function() {
-          console.error('❌ Failed to load VoiceFlow script');
-          window.voiceflowChatLoaded = false;
-          setIsVoiceFlowLoaded(false);
-        }
-        v.src = "https://cdn.voiceflow.com/widget-next/bundle.mjs"; 
-        v.type = "text/javascript"; 
+        v.src = "https://cdn.voiceflow.com/widget-next/bundle.mjs";
+        v.type = "text/javascript";
         s.parentNode.insertBefore(v, s);
     })(document, 'script');
-  }, [user, sessionId, voiceFlowUserId]);
+}, [user, sessionId, voiceFlowUserId]);
 
   // Hide VoiceFlow widget completely while preserving functionality
   useEffect(() => {
