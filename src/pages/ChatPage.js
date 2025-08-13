@@ -38,21 +38,32 @@ if (!user) {
 
   (function(d, t) {
       var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
-      v.onload = function() {
-        window.voiceflow.chat.load({
-          verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
-          url: 'https://general-runtime.voiceflow.com',
-          versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
-          // This voice property is the required fix
-          voice: {
-            url: "https://runtime-api.voiceflow.com"
-          },
-          userID: voiceflowUserID,
-          variables: {
-            session_id: sessionId || 'guest',
-            userName: user ? user.first_name : 'Guest',
-            userEmail: user ? user.email : ''
-          }
+      v.onload = function () {
+  // 1) Load the SDK (no user/variables here)
+  window.voiceflow.chat.load({
+    verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
+    url: 'https://general-runtime.voiceflow.com',
+    versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
+    voice: { url: 'https://runtime-api.voiceflow.com' }
+  });
+
+  // 2) Immediately open with a stable userID and session variables
+  const vfUserID = user?.id || sessionId || 'guest';
+  const vfVars = {
+    session_id: sessionId || 'guest',
+    userName: user?.first_name || 'Guest',
+    userEmail: user?.email || '',
+    supabase_user_id: user?.id || ''
+  };
+
+  window.voiceflow.chat.open({
+    userID: vfUserID,
+    session: {
+      restart: true,           // ensures first turn uses these variables
+      variables: vfVars
+    }
+  });
+};
         });
         setIsVoiceFlowLoaded(true);
       }
@@ -244,8 +255,7 @@ if (!user) {
       
       // Method 2: Try opening chat first
       console.log('🔄 Opening VoiceFlow chat...');
-      window.voiceflow.chat.open();
-      
+            
       // Then try to find voice button after delay
       setTimeout(() => {
         if (window.voiceflow.chat._shadowRoot) {
