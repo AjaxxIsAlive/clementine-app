@@ -415,7 +415,7 @@ function ChatPage({ user, sessionId, voiceFlowUserId, onLogout }) {
 
       {/* Title and Instructions */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Clementine - Version 2</h1>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">Clementine - Version 3</h1>
         <p className="text-gray-600 mb-2">Your AI relationship advisor</p>
         
         {chatMode === 'voice' ? (
