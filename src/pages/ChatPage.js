@@ -53,7 +53,7 @@ useEffect(() => {
       });
 
       Promise.resolve(loadPromise).then(() => {
-        console.log('VF OPEN INIT >>', { vfUserID, vfVars });
+        console.log('VF OPEN INIT >>', JSON.stringify({ vfUserID, vfVars }, null, 2));
         window.voiceflow.chat.open({
           userID: vfUserID,
           session: { restart: true, variables: vfVars }
