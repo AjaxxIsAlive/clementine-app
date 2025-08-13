@@ -71,7 +71,7 @@ Promise.resolve(loadPromise).then(() => {
 });
 
     v.src = 'https://cdn.voiceflow.com/widget-next/bundle.mjs';
-    v.type = 'text/javascript';
+    v.type = 'module';
     s.parentNode.insertBefore(v, s);
   })(document, 'script');
 }, [user, sessionId]);
