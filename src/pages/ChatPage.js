@@ -126,6 +126,11 @@ useEffect(() => {}, [isVoiceFlowLoaded]);
       return;
     }
 
+    if (!window?.voiceflow?.chat) { 
+    console.log('❌ Voiceflow not initialized yet'); 
+    return; 
+  }
+
     try {
       // Method 1: Try Shadow DOM access
       if (window.voiceflow && window.voiceflow.chat && window.voiceflow.chat._shadowRoot) {
