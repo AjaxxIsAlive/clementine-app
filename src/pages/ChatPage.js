@@ -30,6 +30,10 @@ function ChatPage({ user, sessionId, voiceFlowUserId, onLogout }) {
 
   // Load VoiceFlow widget ONCE
 useEffect(() => {
+  // Do not run this code until the user object is available
+if (!user) {
+  return; 
+}
   const voiceflowUserID = user ? user.id : sessionId || 'guest';
 
   (function(d, t) {
