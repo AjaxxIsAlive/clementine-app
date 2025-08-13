@@ -54,6 +54,7 @@ useEffect(() => {
       });
 
       // 2) Open with stable user + session variables
+      console.log('VF OPEN INIT >>', { vfUserID, vfVars });
       window.voiceflow.chat.open({
         userID: vfUserID,
         session: { restart: true, variables: vfVars }
