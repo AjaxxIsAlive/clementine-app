@@ -29,29 +29,33 @@ function ChatPage({ user, sessionId, voiceFlowUserId, onLogout }) {
   }, []);
 
   // Load VoiceFlow widget ONCE
-  useEffect(() => {
-    const voiceflowUserID = user ? user.id : sessionId || 'guest';
+useEffect(() => {
+  const voiceflowUserID = user ? user.id : sessionId || 'guest';
 
-    (function(d, t) {
-        var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
-        v.onload = function() {
-          window.voiceflow.chat.load({
-            verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
-            url: 'https://general-runtime.voiceflow.com',
-            versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
-            userID: voiceflowUserID,
-            variables: {
-              session_id: sessionId || 'guest',
-              userName: user ? user.first_name : 'Guest',
-              userEmail: user ? user.email : ''
-            }
-          });
-          setIsVoiceFlowLoaded(true);
-        }
-        v.src = "https://cdn.voiceflow.com/widget-next/bundle.mjs";
-        v.type = "text/javascript";
-        s.parentNode.insertBefore(v, s);
-    })(document, 'script');
+  (function(d, t) {
+      var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
+      v.onload = function() {
+        window.voiceflow.chat.load({
+          verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
+          url: 'https://general-runtime.voiceflow.com',
+          versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
+          // This voice property is the required fix
+          voice: {
+            url: "https://runtime-api.voiceflow.com"
+          },
+          userID: voiceflowUserID,
+          variables: {
+            session_id: sessionId || 'guest',
+            userName: user ? user.first_name : 'Guest',
+            userEmail: user ? user.email : ''
+          }
+        });
+        setIsVoiceFlowLoaded(true);
+      }
+      v.src = "https://cdn.voiceflow.com/widget-next/bundle.mjs"; 
+      v.type = "text/javascript"; 
+      s.parentNode.insertBefore(v, s);
+  })(document, 'script');
 }, [user, sessionId, voiceFlowUserId]);
 
   // Hide VoiceFlow widget completely while preserving functionality
