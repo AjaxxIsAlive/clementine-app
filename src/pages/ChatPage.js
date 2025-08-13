@@ -44,36 +44,29 @@ useEffect(() => {
     const v = d.createElement(t);
     const s = d.getElementsByTagName(t)[0];
 
-    // 1) Load the widget and send identity in launch.event.payload
-const loadPromise = window.voiceflow.chat.load({
-  verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
-  url: 'https://general-runtime.voiceflow.com',
-  versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
-  voice: { url: 'https://runtime-api.voiceflow.com' },
-  userID: vfUserID,                          // stable identity
-  launch: {                                  // <-- this is how VF wants variables pre-filled
-    event: {
-      type: 'launch',
-      payload: {
-        userName: vfVars.userName,           // must match your VF variable names
-        userEmail: vfVars.userEmail,
-        supabase_user_id: vfVars.supabase_user_id,
-        session_id: vfVars.session_id
-      }
-    }
-  }
-});
+    v.onload = function () {
+      const loadPromise = window.voiceflow.chat.load({
+        verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
+        url: 'https://general-runtime.voiceflow.com',
+        versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
+        voice: { url: 'https://runtime-api.voiceflow.com' }
+      });
 
-// 2) After load completes, simply open the chat
-Promise.resolve(loadPromise).then(() => {
-  window.voiceflow.chat.open();
-  setIsVoiceFlowLoaded(true);
-});
+      Promise.resolve(loadPromise).then(() => {
+        console.log('VF OPEN INIT >>', { vfUserID, vfVars });
+        window.voiceflow.chat.open({
+          userID: vfUserID,
+          session: { restart: true, variables: vfVars }
+        });
+        setIsVoiceFlowLoaded(true);
+      });
+    };
 
     v.src = 'https://cdn.voiceflow.com/widget-next/bundle.mjs';
-    v.type = 'module';
+    v.type = 'text/javascript';
     s.parentNode.insertBefore(v, s);
   })(document, 'script');
+
 }, [user, sessionId]);
 
   // Hide VoiceFlow widget completely while preserving functionality
