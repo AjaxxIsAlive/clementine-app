@@ -49,24 +49,27 @@ useEffect(() => {
         verify: { projectID: process.env.REACT_APP_VOICEFLOW_PROJECT_ID },
         url: 'https://general-runtime.voiceflow.com',
         versionID: process.env.REACT_APP_VOICEFLOW_VERSION_ID,
-        voice: { url: 'https://runtime-api.voiceflow.com' }
+        voice: { url: 'https://runtime-api.voiceflow.com' },
+        userID: vfUserID,
+        variables: {
+          userName: vfVars.userName || '',
+          userEmail: vfVars.userEmail || '',
+          supabase_user_id: vfVars.supabase_user_id || '',
+          session_id: vfVars.session_id || ''
+        }
       });
 
       Promise.resolve(loadPromise).then(() => {
         console.log('VF OPEN INIT >>', JSON.stringify({ vfUserID, vfVars }, null, 2));
-        window.voiceflow.chat.open({
-          userID: vfUserID,
-          session: { restart: true, variables: vfVars }
-        });
+        window.voiceflow.chat.open();
         setIsVoiceFlowLoaded(true);
       });
     };
 
     v.src = 'https://cdn.voiceflow.com/widget-next/bundle.mjs';
-    v.type = 'text/javascript';
+    v.type = 'module';
     s.parentNode.insertBefore(v, s);
   })(document, 'script');
-
 }, [user, sessionId]);
 
   // Hide VoiceFlow widget completely while preserving functionality
