@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import './App.css';
 import FaceNavigation from './components/FaceNavigation';
 import ChatPage from './pages/ChatPage';
@@ -9,35 +9,50 @@ import VoiceFlowAPIChat from './pages/VoiceFlowAPIChat';
 import VoiceFlowOptions from './pages/VoiceFlowOptions';
 import CustomVoiceFlowDemo from './pages/CustomVoiceFlowDemo';
 import TestPage from './pages/TestPage';
+import TestAdmin from './pages/TestAdmin';
 import ChatPageTest from './pages/ChatPageTest';
 import LoginModal from './components/LoginModal';
 import authService from './services/authService';
-import { supabase } from './supabaseClient';
+// import { supabase } from './supabaseClient'; // Not directly used - authService handles Supabase
 
 function App() {
+  return (
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
+      <AppContent />
+    </Router>
+  );
+}
+
+function AppContent() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [voiceFlowUserId, setVoiceFlowUserId] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [session, setSession] = useState(null);
+  // const [session, setSession] = useState(null); // Unused - using custom auth instead
 
-useEffect(() => {
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    setSession(session);
-  });
+  useEffect(() => {
+    // Supabase auth session monitoring (not currently used - using custom auth)
+    /*
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
 
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    setSession(session);
-  });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
 
-  return () => subscription.unsubscribe();
-}, []);
-console.log('🔍 DEBUGGING SESSION DATA V2:');
-console.log('Current Supabase session:', session);
-
+    return () => subscription.unsubscribe();
+    */
+  }, []);
 
   // Check for existing login on app start
   useEffect(() => {
@@ -48,7 +63,7 @@ console.log('Current Supabase session:', session);
           setUser(existingAuth.user);
           setSessionId(existingAuth.sessionId);
           setVoiceFlowUserId(authService.getVoiceFlowUserId());
-          console.log('✅ Existing auth found:', existingAuth.user);
+          // console.log('✅ Existing auth found:', existingAuth.user);
         }
       } catch (error) {
         console.log('ℹ️ No existing auth found');
@@ -58,14 +73,16 @@ console.log('Current Supabase session:', session);
     };
 
     checkExistingAuth();
-  }, []);
-
-  const handleLogin = (authData) => {
+  }, []);  const handleLogin = (authData) => {
     setUser(authData.user);
     setSessionId(authData.sessionId);
     setVoiceFlowUserId(authData.voiceFlowUserId);
     setShowLoginModal(false);
     console.log('✅ User logged in:', authData.user);
+    
+    // Navigate to chat page after successful login
+    console.log('🔄 Navigating to chat page...');
+    navigate('/chat');
   };
 
   const handleLogout = () => {
@@ -92,35 +109,34 @@ console.log('Current Supabase session:', session);
   };
 
   return (
-    <Router>
-      <div className="App">
-        <Routes>
-          <Route path="/test" element={<TestPage />} />
-          <Route path="/" element={<FaceNavigation onLoginClick={() => setShowLoginModal(true)} />} />
-          <Route path="/chat" element={requireAuth(
-            <ChatPage 
-              user={user} 
-              sessionId={sessionId} 
-              voiceFlowUserId={voiceFlowUserId}
-              onLogout={handleLogout}
-            />
-          )} />
-          <Route path="/native-chat" element={<NativeVoiceFlowChat />} />
-          <Route path="/custom-chat" element={<CustomVoiceFlowChat />} />
-          <Route path="/custom-demo" element={<CustomVoiceFlowDemo />} />
-          <Route path="/api-chat" element={<VoiceFlowAPIChat />} />
-          <Route path="/voice-options" element={<VoiceFlowOptions />} />
-          <Route path="/test-chat" element={<ChatPageTest />} />
-          {/* We'll add other routes later */}
-        </Routes>
+    <div className="App">
+      <Routes>
+        <Route path="/test" element={<TestPage />} />
+        <Route path="/admin" element={<TestAdmin />} />
+        <Route path="/" element={<FaceNavigation onLoginClick={() => setShowLoginModal(true)} />} />
+        <Route path="/chat" element={requireAuth(
+          <ChatPage 
+            user={user} 
+            sessionId={sessionId} 
+            voiceFlowUserId={voiceFlowUserId}
+            onLogout={handleLogout}
+          />
+        )} />
+        <Route path="/native-chat" element={<NativeVoiceFlowChat />} />
+        <Route path="/custom-chat" element={<CustomVoiceFlowChat />} />
+        <Route path="/api-chat" element={<VoiceFlowAPIChat />} />
+        <Route path="/voice-options" element={<VoiceFlowOptions />} />
+        <Route path="/custom-demo" element={<CustomVoiceFlowDemo />} />
+        <Route path="/test-chat" element={<ChatPageTest />} />
+        {/* We'll add other routes later */}
+      </Routes>
 
-        <LoginModal
-          isVisible={showLoginModal}
-          onLogin={handleLogin}
-          onClose={() => setShowLoginModal(false)}
-        />
-      </div>
-    </Router>
+      <LoginModal
+        isVisible={showLoginModal}
+        onLogin={handleLogin}
+        onClose={() => setShowLoginModal(false)}
+      />
+    </div>
   );
 }
 

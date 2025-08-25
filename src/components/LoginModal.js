@@ -20,10 +20,12 @@ function LoginModal({ isVisible, onLogin, onClose }) {
     setError('');
 
     try {
+      console.log('🔄 LoginModal: Attempting login for:', emailOrUsername.trim());
       const result = await authService.login(emailOrUsername.trim(), name.trim() || null);
+      console.log('🔄 LoginModal: Login result:', result);
       
       if (result.success) {
-        console.log('✅ Login successful:', result.user);
+        console.log('✅ LoginModal: Login successful for:', result.user.email);
         
         // Call the onLogin callback with user data
         onLogin({
@@ -38,10 +40,11 @@ function LoginModal({ isVisible, onLogin, onClose }) {
         setError('');
         onClose();
       } else {
+        console.error('❌ LoginModal: Login failed:', result.error);
         setError(result.error || 'Login failed');
       }
     } catch (error) {
-      console.error('❌ Login error:', error);
+      console.error('❌ LoginModal: Login exception:', error);
       setError('Login failed. Please try again.');
     } finally {
       setIsLoading(false);

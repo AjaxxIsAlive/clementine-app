@@ -4,17 +4,35 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#ec4899" />
     <meta
       name="description"
-      content="Web site created using create-react-app"
+      content="Clementine - Your AI relationship advisor"
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <!--
       manifest.json provides metadata used when your web app is installed on a
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+      Conditionally load manifest to avoid CORS issues in development
     -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <script>
+      // Only load manifest if not in GitHub Codespaces to avoid CORS issues
+      if (!window.location.hostname.includes('github.dev') && !window.location.hostname.includes('app.github.dev')) {
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = '%PUBLIC_URL%/manifest.json';
+        document.head.appendChild(link);
+      }
+      
+      // Reduce console noise from React DevTools messages
+      const originalLog = console.log;
+      console.log = function(...args) {
+        if (args[0] && typeof args[0] === 'string' && args[0].includes('Download the React DevTools')) {
+          return; // Suppress React DevTools download messages
+        }
+        originalLog.apply(console, args);
+      };
+    </script>
     <!--
       Notice the use of %PUBLIC_URL% in the tags above.
       It will be replaced with the URL of the `public` folder during the build.
@@ -24,7 +42,7 @@
       work correctly both with client-side routing and a non-root public URL.
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
-    <title>React App</title>
+    <title>Clementine - AI Relationship Advisor</title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

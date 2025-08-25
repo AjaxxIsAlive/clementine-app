@@ -29,7 +29,8 @@ function FaceNavigation({ onLoginClick }) {
   const handleAreaClick = (area) => {
     switch(area) {
       case 'chat':
-        navigate('/chat');  // Go directly to the new face-based chat page
+        console.log('👆 Face clicked! Opening login...');
+        onLoginClick(); // Trigger login modal instead of direct navigation
         break;
       case 'self-check':
         navigate('/self-check');
@@ -310,6 +311,134 @@ function FaceNavigation({ onLoginClick }) {
           <p className="text-xs text-gray-500 mt-2">
             Login to save your conversations and memories
           </p>
+          
+          {/* Admin Panel Link */}
+          <div className="mt-4 space-y-2">
+            <div>
+              <a
+                href="/admin"
+                className="inline-block bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm transition-colors"
+              >
+                🔧 Admin Panel (Add Test Users)
+              </a>
+            </div>
+            
+            {/* Test User Recognition Button */}
+            <div>
+              <button
+                onClick={async () => {
+                  const authService = (await import('../services/authService')).default;
+                  console.log('🧪 Testing user recognition with existing user...');
+                  const result = await authService.login('dot@mail.com');
+                  if (result.success) {
+                    console.log('✅ Recognition test successful!');
+                    console.log('👤 User:', result.user.first_name, '(' + result.user.email + ')');
+                    console.log('🔗 Session ID:', result.sessionId);
+                    console.log('📚 Has history:', result.conversationHistory?.length > 0);
+                    alert(`✅ User Recognition Test:\n- User: ${result.user.first_name}\n- Email: ${result.user.email}\n- Session ID: ${result.sessionId ? 'Yes' : 'No'}\n- Conversations: ${result.conversationHistory?.length || 0}`);
+                  } else {
+                    console.error('❌ Recognition test failed:', result.error);
+                    alert('❌ Test failed: ' + result.error);
+                  }
+                }}
+                className="inline-block bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm transition-colors"
+              >
+                🧪 Test User Recognition
+              </button>
+            </div>
+            
+            {/* Test VoiceFlow Context Button */}
+            <div>
+              <button
+                onClick={async () => {
+                  try {
+                    console.log('🧪 Testing VoiceFlow context passing...');
+                    
+                    // Get stored user
+                    const storedUser = JSON.parse(localStorage.getItem('clementine_user') || '{}');
+                    if (!storedUser.id) {
+                      alert('❌ No user logged in. Please test user recognition first.');
+                      return;
+                    }
+                    
+                    // Import VoiceFlow service and test context
+                    const VoiceFlowService = (await import('../services/voiceflow')).default;
+                    const voiceflowService = new VoiceFlowService();
+                    
+                    // Set user context
+                    const contextResult = await voiceflowService.setUserContext(storedUser);
+                    console.log('📤 VoiceFlow context result:', contextResult);
+                    
+                    // Show what was sent
+                    alert(`✅ VoiceFlow Context Test:\n- User: ${storedUser.first_name}\n- Session ID: ${storedUser.session_id ? 'Yes' : 'No'}\n- Context Variables Set: ${contextResult ? 'Yes' : 'No'}\n\nCheck console for full details.`);
+                    
+                  } catch (error) {
+                    console.error('❌ VoiceFlow context test failed:', error);
+                    alert('❌ VoiceFlow test failed: ' + error.message);
+                  }
+                }}
+                className="inline-block bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded text-sm transition-colors"
+              >
+                🎯 Test VoiceFlow Context
+              </button>
+            </div>
+            
+            {/* Test Enhanced Memory System Button */}
+            <div>
+              <button
+                onClick={async () => {
+                  try {
+                    console.log('🧠 Testing Enhanced Memory System...');
+                    
+                    const { createClient } = await import('@supabase/supabase-js');
+                    const supabase = createClient(
+                      process.env.REACT_APP_SUPABASE_URL,
+                      process.env.REACT_APP_SUPABASE_ANON_KEY
+                    );
+                    
+                    // Get current user
+                    const storedUser = JSON.parse(localStorage.getItem('clementine_user') || '{}');
+                    if (!storedUser.id) {
+                      alert('❌ No user logged in. Please test user recognition first.');
+                      return;
+                    }
+                    
+                    // Test personal data storage
+                    const mockPersonalData = {
+                      attachmentStyle: ['secure'],
+                      relationshipStatus: ['single'],
+                      familyInfo: ['close with family'],
+                      importantDates: ['birthday: Dec 25'],
+                      emotionalTriggers: ['stress about work'],
+                      conversationTopics: ['relationships', 'career'],
+                      testTimestamp: new Date().toISOString()
+                    };
+                    
+                    const { data, error } = await supabase
+                      .from('profiles')
+                      .update({ personal_data: mockPersonalData })
+                      .eq('id', storedUser.id)
+                      .select();
+                      
+                    if (error) {
+                      console.error('Memory test failed:', error);
+                      alert('❌ Memory test failed: ' + error.message);
+                    } else {
+                      console.log('✅ Personal data stored:', mockPersonalData);
+                      alert(`✅ Enhanced Memory Test:\n- Personal data stored: ${Object.keys(mockPersonalData).length} fields\n- Attachment style: ${mockPersonalData.attachmentStyle.join(', ')}\n- Topics: ${mockPersonalData.conversationTopics.join(', ')}\n\nClementine can now remember these details!`);
+                    }
+                    
+                  } catch (error) {
+                    console.error('❌ Memory system test failed:', error);
+                    alert('❌ Memory test failed: ' + error.message);
+                  }
+                }}
+                className="inline-block bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm transition-colors"
+              >
+                🧠 Test Memory System
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
